@@ -1,0 +1,1374 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>뽀모도로 타이머</title>
+<style>
+  :root {
+    --color-focus: #e0604d;
+    --color-focus-bg: #fdf1ee;
+    --color-shortBreak: #3f9f77;
+    --color-shortBreak-bg: #eef8f2;
+    --color-longBreak: #4d6fe0;
+    --color-longBreak-bg: #eef1fd;
+    --color-accent: var(--color-focus);
+    --color-accent-bg: var(--color-focus-bg);
+    --bg: #f6f4f1;
+    --card-bg: #ffffff;
+    --text: #2b2926;
+    --text-muted: #7a746c;
+    --border: #e7e2db;
+    --warn-bg: #fff4da;
+    --warn-border: #e8b93f;
+    --warn-text: #6b5410;
+    --danger: #c94848;
+    --shadow: 0 10px 30px rgba(43, 41, 38, 0.08);
+    --radius: 18px;
+    font-size: 16px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", Roboto, sans-serif;
+    min-height: 100%;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px 60px;
+    transition: background 0.4s ease;
+  }
+
+  #app {
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  header.app-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-content: center;
+    color: var(--text);
+  }
+
+  header.app-header h1 {
+    font-size: 1.3rem;
+    margin: 0;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  .icon {
+    width: 1.2em;
+    height: 1.2em;
+    display: inline-block;
+    vertical-align: middle;
+  }
+
+  nav.tabs {
+    display: flex;
+    gap: 8px;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 4px;
+    box-shadow: var(--shadow);
+  }
+
+  nav.tabs button {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    padding: 10px 8px;
+    border-radius: 999px;
+    font-size: 0.92rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+
+  nav.tabs button.active {
+    background: var(--color-accent-bg);
+    color: var(--color-accent);
+  }
+
+  nav.tabs button .icon { width: 1.05em; height: 1.05em; }
+
+  .banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-border);
+    color: var(--warn-text);
+    padding: 12px 14px;
+    border-radius: 12px;
+    font-size: 0.88rem;
+    line-height: 1.4;
+  }
+
+  .banner .icon { flex-shrink: 0; width: 1.2em; height: 1.2em; margin-top: 1px; }
+
+  .card {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+    padding: 28px 24px;
+  }
+
+  .timer-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+    text-align: center;
+  }
+
+  .session-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 16px;
+    border-radius: 999px;
+    background: var(--color-accent-bg);
+    color: var(--color-accent);
+    font-weight: 700;
+    font-size: 0.95rem;
+    letter-spacing: 0.02em;
+  }
+
+  .slot-dots {
+    display: flex;
+    gap: 8px;
+  }
+
+  .slot-dots .dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--border);
+    transition: background 0.2s ease;
+  }
+
+  .slot-dots .dot.filled {
+    background: var(--color-accent);
+  }
+
+  .time-display {
+    font-size: 4.2rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    line-height: 1;
+  }
+
+  .status-line {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    min-height: 1.2em;
+  }
+
+  .controls-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    width: 100%;
+  }
+
+  button {
+    font-family: inherit;
+  }
+
+  .btn {
+    border: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-weight: 600;
+    transition: transform 0.08s ease, background 0.2s ease, opacity 0.2s ease;
+  }
+
+  .btn:active { transform: scale(0.96); }
+
+  .btn-primary {
+    background: var(--color-accent);
+    color: #fff;
+    width: 78px;
+    height: 78px;
+    border-radius: 50%;
+    font-size: 0.85rem;
+    flex-direction: column;
+    box-shadow: 0 8px 20px rgba(224, 96, 77, 0.35);
+  }
+
+  .btn-primary .icon { width: 1.6em; height: 1.6em; }
+
+  .btn-secondary {
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    width: 54px;
+    height: 54px;
+    border-radius: 50%;
+  }
+
+  .btn-secondary .icon { width: 1.25em; height: 1.25em; }
+
+  .btn-secondary:hover { background: var(--color-accent-bg); }
+
+  .btn-text {
+    background: transparent;
+    color: var(--text-muted);
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 0.9rem;
+  }
+
+  .btn-text:hover { background: var(--bg); }
+
+  .btn-block {
+    background: var(--color-accent);
+    color: #fff;
+    padding: 13px 18px;
+    border-radius: 12px;
+    width: 100%;
+    font-size: 1rem;
+  }
+
+  .btn-block:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  [hidden] { display: none !important; }
+
+  /* Memo overlay */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(43, 41, 38, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 50;
+  }
+
+  .overlay .dialog {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    padding: 26px 22px;
+    max-width: 420px;
+    width: 100%;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.25);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .overlay h2 {
+    margin: 0;
+    font-size: 1.1rem;
+  }
+
+  .overlay p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.92rem;
+    line-height: 1.5;
+  }
+
+  .overlay input[type="text"] {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    font-size: 1rem;
+    font-family: inherit;
+  }
+
+  .overlay .actions {
+    display: flex;
+    gap: 10px;
+  }
+
+  .overlay .actions .btn-text {
+    flex: 1;
+    border: 1px solid var(--border);
+  }
+
+  .overlay .actions .btn-block { flex: 2; }
+
+  /* Settings */
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+
+  .field label {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .field input[type="number"] {
+    padding: 11px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    font-size: 1rem;
+    font-family: inherit;
+    width: 100%;
+  }
+
+  .field input.invalid {
+    border-color: var(--danger);
+  }
+
+  .field .error {
+    color: var(--danger);
+    font-size: 0.8rem;
+    min-height: 1.1em;
+  }
+
+  .save-feedback {
+    text-align: center;
+    color: var(--color-shortBreak);
+    font-size: 0.88rem;
+    min-height: 1.2em;
+  }
+
+  /* Log */
+  .log-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .log-controls input[type="date"] {
+    padding: 9px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    font-family: inherit;
+    font-size: 0.92rem;
+  }
+
+  .log-count {
+    font-weight: 700;
+    color: var(--color-accent);
+  }
+
+  .log-empty {
+    color: var(--text-muted);
+    text-align: center;
+    padding: 30px 10px;
+    font-size: 0.92rem;
+  }
+
+  .memo-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .memo-item {
+    display: flex;
+    gap: 12px;
+    padding: 12px 14px;
+    background: var(--bg);
+    border-radius: 10px;
+  }
+
+  .memo-time {
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+    padding-top: 1px;
+  }
+
+  .memo-text {
+    font-size: 0.92rem;
+    line-height: 1.4;
+    word-break: break-word;
+  }
+
+  .memo-text.empty {
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
+  .visually-hidden {
+    position: absolute;
+    width: 1px; height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  @media (max-width: 380px) {
+    .time-display { font-size: 3.4rem; }
+    .btn-primary { width: 68px; height: 68px; }
+    .btn-secondary { width: 48px; height: 48px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header class="app-header">
+    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="13" r="8" fill="none" stroke="currentColor" stroke-width="2"/>
+      <line x1="12" y1="13" x2="12" y2="8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <line x1="12" y1="13" x2="16" y2="15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <line x1="9" y1="2" x2="15" y2="2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+    <h1>뽀모도로 타이머</h1>
+  </header>
+
+  <div id="storageBanner" class="banner" hidden>
+    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 3 1 21h22L12 3z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+      <line x1="12" y1="10" x2="12" y2="15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="12" cy="18" r="1" fill="currentColor"/>
+    </svg>
+    <span>데이터가 저장되지 않고 있습니다 — 새로고침 시 최근 변경사항이 유실될 수 있습니다.</span>
+  </div>
+
+  <nav class="tabs" id="nav">
+    <button type="button" id="navTimerBtn" data-screen="timer">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8" fill="none" stroke="currentColor" stroke-width="2"/><line x1="12" y1="13" x2="12" y2="9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="12" y1="13" x2="15" y2="15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      타이머
+    </button>
+    <button type="button" id="navLogBtn" data-screen="log">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><line x1="8" y1="6" x2="20" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="8" y1="12" x2="20" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="8" y1="18" x2="20" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="4" cy="6" r="1.4" fill="currentColor"/><circle cx="4" cy="12" r="1.4" fill="currentColor"/><circle cx="4" cy="18" r="1.4" fill="currentColor"/></svg>
+      로그
+    </button>
+    <button type="button" id="navSettingsBtn" data-screen="settings">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><line x1="4" y1="6" x2="20" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="9" cy="6" r="2.2" fill="currentColor"/><line x1="4" y1="12" x2="20" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="15" cy="12" r="2.2" fill="currentColor"/><line x1="4" y1="18" x2="20" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="7" cy="18" r="2.2" fill="currentColor"/></svg>
+      설정
+    </button>
+  </nav>
+
+  <section id="screenTimer">
+    <div class="card timer-card">
+      <span class="session-label" id="sessionTypeLabel">집중</span>
+      <div class="slot-dots" id="slotDots" aria-hidden="true"></div>
+      <div class="time-display" id="timeDisplay" role="timer" aria-live="off">25:00</div>
+      <div class="status-line visually-hidden" id="ariaAnnounce" aria-live="assertive"></div>
+      <div class="controls-row" id="controlsRow">
+        <button type="button" class="btn btn-secondary" id="resetBtn" title="리셋" aria-label="리셋">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-3-6.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><polyline points="20 3 20 8 15 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button type="button" class="btn btn-primary" id="startPauseBtn" aria-label="시작">
+          <svg class="icon" id="startPauseIcon" viewBox="0 0 24 24" aria-hidden="true"><polygon points="6,4 20,12 6,20" fill="currentColor"/></svg>
+          <span id="startPauseText">시작</span>
+        </button>
+        <button type="button" class="btn btn-secondary" id="skipBtn" title="스킵" aria-label="스킵">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><polygon points="5,4 15,12 5,20" fill="currentColor"/><rect x="17" y="4" width="3" height="16" fill="currentColor"/></svg>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <section id="screenLog" hidden>
+    <div class="card">
+      <div class="log-controls">
+        <label for="logDateInput" style="font-size:0.88rem;color:var(--text-muted);">날짜</label>
+        <input type="date" id="logDateInput">
+      </div>
+      <div class="log-count" id="logCount">완료한 뽀모도로: 0개</div>
+      <div style="height:14px;"></div>
+      <div id="logEmpty" class="log-empty" hidden>이 날짜에 기록된 메모가 없습니다.</div>
+      <ul class="memo-list" id="logMemoList"></ul>
+    </div>
+  </section>
+
+  <section id="screenSettings" hidden>
+    <div class="card">
+      <form id="settingsForm" novalidate>
+        <div class="field">
+          <label for="focusInput">집중 시간 (분)</label>
+          <input type="number" id="focusInput" min="1" max="180" step="1" inputmode="numeric">
+          <div class="error" id="focusError"></div>
+        </div>
+        <div class="field">
+          <label for="shortBreakInput">짧은 휴식 시간 (분)</label>
+          <input type="number" id="shortBreakInput" min="1" max="180" step="1" inputmode="numeric">
+          <div class="error" id="shortBreakError"></div>
+        </div>
+        <div class="field">
+          <label for="longBreakInput">긴 휴식 시간 (분)</label>
+          <input type="number" id="longBreakInput" min="1" max="180" step="1" inputmode="numeric">
+          <div class="error" id="longBreakError"></div>
+        </div>
+        <button type="submit" class="btn btn-block" id="settingsSaveBtn">저장</button>
+        <div class="save-feedback" id="settingsSavedMsg"></div>
+      </form>
+    </div>
+  </section>
+
+</div>
+
+<div class="overlay" id="memoOverlay" hidden>
+  <div class="dialog">
+    <h2>집중 세션 완료!</h2>
+    <p>이번 세션에서 무엇을 하셨나요? 기록은 로그 화면에서 확인할 수 있습니다.</p>
+    <input type="text" id="memoInput" placeholder="작업 내용을 입력하세요 (선택)" maxlength="200">
+    <div class="actions">
+      <button type="button" class="btn btn-text" id="memoSkipBtn">건너뛰기</button>
+      <button type="button" class="btn btn-block" id="memoSubmitBtn">저장</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="clockChangeModal" hidden>
+  <div class="dialog">
+    <h2>시스템 시간 변경 감지</h2>
+    <p>시스템 시간 변경이 감지되어 타이머가 일시정지되었습니다.</p>
+    <button type="button" class="btn btn-block" id="clockChangeResumeBtn">재개</button>
+  </div>
+</div>
+
+<script>
+(function (globalScope) {
+'use strict';
+
+/* =========================================================================
+ * 상수 / 기본값
+ * ========================================================================= */
+var STORAGE_KEYS = {
+  settings: 'pomodoro_settings_v1',
+  logs: 'pomodoro_logs_v1',
+  timer: 'pomodoro_timerState_v1'
+};
+
+var DEFAULT_SETTINGS = { focus: 25, shortBreak: 5, longBreak: 15 };
+
+var SESSION_LABEL = {
+  focus: '집중',
+  shortBreak: '짧은 휴식',
+  longBreak: '긴 휴식'
+};
+
+var SESSION_TYPES = ['focus', 'shortBreak', 'longBreak'];
+var SESSION_STATUSES = ['idle', 'running', 'paused'];
+
+var CLOCK_DRIFT_THRESHOLD_MS = 5000;
+var TICK_INTERVAL_MS = 200;
+
+var hasDocument = typeof document !== 'undefined';
+var hasWindow = typeof window !== 'undefined';
+
+/* =========================================================================
+ * 상태 (module scope)
+ * ========================================================================= */
+var settings = null;
+var logs = null;
+var timer = null;
+var anchors = { date: 0, perf: 0 };
+var clockChangeAlert = false;
+var currentScreen = 'timer';
+var storageStatus = 'synced';
+
+var audioCtx = null;
+var notificationPermissionRequested = false;
+var tabTitleFlashed = false;
+var originalTitle = hasDocument ? document.title : '뽀모도로 타이머';
+
+var tickHandle = null;
+
+/* =========================================================================
+ * 순수 헬퍼 함수
+ * ========================================================================= */
+function pad2(n) { return (n < 10 ? '0' : '') + n; }
+
+function formatMMSS(ms) {
+  var totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+  var m = Math.floor(totalSeconds / 60);
+  var s = totalSeconds % 60;
+  return pad2(m) + ':' + pad2(s);
+}
+
+function toDateKey(timestamp) {
+  var d = new Date(timestamp);
+  return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+}
+
+function todayDateKey() {
+  return toDateKey(Date.now());
+}
+
+function formatTimeHHMM(timestamp) {
+  var d = new Date(timestamp);
+  return pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+}
+
+function validateSessionMinutes(value) {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 180;
+}
+
+function sanitizeSettings(obj) {
+  var out = { focus: DEFAULT_SETTINGS.focus, shortBreak: DEFAULT_SETTINGS.shortBreak, longBreak: DEFAULT_SETTINGS.longBreak };
+  if (obj && typeof obj === 'object') {
+    SESSION_TYPES.forEach(function (key) {
+      if (validateSessionMinutes(obj[key])) out[key] = obj[key];
+    });
+  }
+  return out;
+}
+
+function computeNextType(justEndedType, slotsConsumed) {
+  if (justEndedType === 'focus') {
+    return slotsConsumed >= 4 ? 'longBreak' : 'shortBreak';
+  }
+  return 'focus';
+}
+
+function createDefaultTimer() {
+  return {
+    sessionType: 'focus',
+    status: 'idle',
+    endTimestamp: null,
+    remainingMs: null,
+    slotsConsumed: 0,
+    memoPending: false,
+    pendingMemo: null
+  };
+}
+
+function isValidTimerShape(t) {
+  return !!t && typeof t === 'object' &&
+    SESSION_TYPES.indexOf(t.sessionType) !== -1 &&
+    SESSION_STATUSES.indexOf(t.status) !== -1;
+}
+
+function normalizeTimer(t) {
+  var out = {
+    sessionType: t.sessionType,
+    status: t.status,
+    endTimestamp: typeof t.endTimestamp === 'number' ? t.endTimestamp : null,
+    remainingMs: typeof t.remainingMs === 'number' ? t.remainingMs : null,
+    slotsConsumed: (Number.isInteger(t.slotsConsumed) && t.slotsConsumed >= 0 && t.slotsConsumed <= 4) ? t.slotsConsumed : 0,
+    memoPending: !!t.memoPending,
+    pendingMemo: (t.pendingMemo && typeof t.pendingMemo === 'object') ? t.pendingMemo : null
+  };
+  // 데이터 정합성 방어: 저장된 상태가 모순되면 안전한 Idle로 되돌린다.
+  if (out.status === 'running' && typeof out.endTimestamp !== 'number') {
+    out.status = 'idle';
+  }
+  if (out.status === 'paused' && !(out.remainingMs > 0)) {
+    out.status = 'idle';
+    out.remainingMs = null;
+  }
+  if (out.memoPending && !out.pendingMemo) {
+    out.memoPending = false;
+  }
+  return out;
+}
+
+function ensureLog(dateKey) {
+  if (!logs[dateKey]) {
+    logs[dateKey] = { count: 0, memos: [] };
+  }
+  return logs[dateKey];
+}
+
+/* =========================================================================
+ * 저장소 (localStorage)
+ * ========================================================================= */
+function safeParse(json, fallback) {
+  if (json == null) return fallback;
+  try {
+    var parsed = JSON.parse(json);
+    return parsed == null ? fallback : parsed;
+  } catch (e) {
+    return fallback;
+  }
+}
+
+function loadFromStorage(key, fallback) {
+  try {
+    return safeParse(localStorage.getItem(key), fallback);
+  } catch (e) {
+    return fallback;
+  }
+}
+
+function setStorageStatus(status) {
+  if (storageStatus !== status) {
+    storageStatus = status;
+    render();
+  }
+}
+
+function saveToStorage(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    setStorageStatus('synced');
+    return true;
+  } catch (e) {
+    setStorageStatus('write-failed');
+    return false;
+  }
+}
+
+function persistTimer() {
+  return saveToStorage(STORAGE_KEYS.timer, {
+    sessionType: timer.sessionType,
+    status: timer.status,
+    endTimestamp: timer.endTimestamp,
+    remainingMs: timer.remainingMs,
+    slotsConsumed: timer.slotsConsumed,
+    memoPending: timer.memoPending,
+    pendingMemo: timer.pendingMemo
+  });
+}
+
+function persistLogs() {
+  return saveToStorage(STORAGE_KEYS.logs, logs);
+}
+
+function persistSettings() {
+  return saveToStorage(STORAGE_KEYS.settings, settings);
+}
+
+/* =========================================================================
+ * 시계 이상 감지 앵커 (EC-04) — 페이지 로드마다 무의미해지는 performance.now()
+ * 기준점 특성상 저장소에 영속화하지 않고 런타임 메모리에만 보관한다.
+ * ========================================================================= */
+function resetAnchors() {
+  anchors.date = Date.now();
+  anchors.perf = performance.now();
+}
+
+/* =========================================================================
+ * 알림 / 사운드 (FR-02, EC-01)
+ * ========================================================================= */
+function ensureAudioAndNotificationInit() {
+  if (!hasWindow || !hasDocument) return;
+  if (!audioCtx) {
+    try {
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      if (Ctx) audioCtx = new Ctx();
+    } catch (e) {
+      audioCtx = null;
+    }
+  } else if (audioCtx.state === 'suspended') {
+    audioCtx.resume().catch(function () {});
+  }
+  if (!notificationPermissionRequested) {
+    notificationPermissionRequested = true;
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      Notification.requestPermission().catch(function () {});
+    }
+  }
+}
+
+function playBeep() {
+  return new Promise(function (resolve, reject) {
+    try {
+      if (!audioCtx) throw new Error('오디오 컨텍스트 없음');
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume().catch(function () {});
+      }
+      var osc = audioCtx.createOscillator();
+      var gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = 880;
+      var now = audioCtx.currentTime;
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.3, now + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.6);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start();
+      osc.stop(now + 0.65);
+      var settled = false;
+      osc.onended = function () { if (!settled) { settled = true; resolve(); } };
+      setTimeout(function () { if (!settled) { settled = true; resolve(); } }, 700);
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
+
+function flashTabTitle() {
+  if (tabTitleFlashed) return;
+  tabTitleFlashed = true;
+  if (hasDocument) document.title = '⏰ 세션 종료! - ' + originalTitle;
+}
+
+function resetTabTitle() {
+  if (!tabTitleFlashed) return;
+  tabTitleFlashed = false;
+  if (hasDocument) document.title = originalTitle;
+}
+
+function notifySessionEnd(endedSessionType) {
+  playBeep().catch(function () { flashTabTitle(); });
+
+  var supported = typeof Notification !== 'undefined';
+  if (supported && Notification.permission === 'granted') {
+    try {
+      new Notification('뽀모도로 타이머', {
+        body: (SESSION_LABEL[endedSessionType] || '') + ' 세션이 종료되었습니다.'
+      });
+    } catch (e) {
+      /* 알림 생성 실패는 무시 — 사운드가 주 알림 수단이므로 별도 대체 불필요 */
+    }
+  } else {
+    flashTabTitle();
+  }
+  announce((SESSION_LABEL[endedSessionType] || '') + ' 세션이 종료되었습니다.');
+}
+
+function announce(text) {
+  if (!hasDocument) return;
+  var el = document.getElementById('ariaAnnounce');
+  if (el) el.textContent = text;
+}
+
+/* =========================================================================
+ * 핵심 상태 머신
+ * ========================================================================= */
+function currentSessionDurationMs(type) {
+  return settings[type] * 60000;
+}
+
+function startOrResume() {
+  if (timer.memoPending) return;
+  ensureAudioAndNotificationInit();
+  if (timer.status === 'idle') {
+    timer.endTimestamp = Date.now() + currentSessionDurationMs(timer.sessionType);
+  } else if (timer.status === 'paused') {
+    timer.endTimestamp = Date.now() + timer.remainingMs;
+  } else {
+    return;
+  }
+  timer.remainingMs = null;
+  timer.status = 'running';
+  resetAnchors();
+  persistTimer();
+  render();
+}
+
+function pause() {
+  if (timer.status !== 'running') return;
+  var remaining = Math.max(timer.endTimestamp - Date.now(), 0);
+  timer.remainingMs = remaining;
+  timer.endTimestamp = null;
+  timer.status = 'paused';
+  persistTimer();
+  render();
+}
+
+function resetCurrentSession() {
+  if (timer.memoPending) return;
+  timer.status = 'idle';
+  timer.endTimestamp = null;
+  timer.remainingMs = null;
+  persistTimer();
+  render();
+}
+
+function skip() {
+  if (timer.memoPending) return;
+  finishSession({ completed: false, autoStart: true });
+}
+
+/**
+ * 진행 중이던 세션(현재 timer.sessionType)을 종료 처리한다.
+ * completed=true: 정상 만료(시간 종료). completed=false: 스킵.
+ * autoStart: 종료 후 다음 세션을 자동 시작할지 여부 (BR-02 — 재접속 복원 시 false)
+ */
+function finishSession(opts) {
+  var completed = opts.completed;
+  var autoStart = opts.autoStart;
+  var endedAt = (typeof opts.endedAtOverride === 'number') ? opts.endedAtOverride : Date.now();
+  var type = timer.sessionType;
+
+  if (type === 'focus') {
+    timer.slotsConsumed = Math.min(timer.slotsConsumed + 1, 4);
+
+    if (completed) {
+      var dateKey = toDateKey(endedAt);
+      ensureLog(dateKey).count += 1;
+      timer.memoPending = true;
+      timer.pendingMemo = { dateKey: dateKey, timestamp: endedAt, autoStart: autoStart };
+      timer.status = 'idle';
+      timer.endTimestamp = null;
+      timer.remainingMs = null;
+      persistTimer();
+      persistLogs();
+      render();
+      return;
+    }
+    advanceToNext(autoStart);
+    return;
+  }
+
+  if (type === 'longBreak') {
+    timer.slotsConsumed = 0;
+  }
+  advanceToNext(autoStart);
+}
+
+function advanceToNext(autoStart) {
+  var nextType = computeNextType(timer.sessionType, timer.slotsConsumed);
+  timer.sessionType = nextType;
+  if (autoStart) {
+    timer.endTimestamp = Date.now() + currentSessionDurationMs(nextType);
+    timer.remainingMs = null;
+    timer.status = 'running';
+    resetAnchors();
+  } else {
+    timer.endTimestamp = null;
+    timer.remainingMs = null;
+    timer.status = 'idle';
+  }
+  persistTimer();
+  render();
+}
+
+function submitMemo(text) {
+  if (!timer.memoPending || !timer.pendingMemo) return;
+  var pending = timer.pendingMemo;
+  ensureLog(pending.dateKey).memos.push({ time: pending.timestamp, text: (text || '').trim() });
+  timer.memoPending = false;
+  timer.pendingMemo = null;
+  persistLogs();
+  advanceToNext(pending.autoStart);
+}
+
+function skipMemo() {
+  submitMemo('');
+}
+
+/* =========================================================================
+ * 틱 루프 & 시계 이상 감지 (NFR-01, EC-04)
+ * ========================================================================= */
+function tick() {
+  if (timer.status !== 'running') return;
+
+  var dateDelta = Date.now() - anchors.date;
+  var perfDelta = performance.now() - anchors.perf;
+  if (Math.abs(dateDelta - perfDelta) >= CLOCK_DRIFT_THRESHOLD_MS) {
+    handleClockChange();
+    return;
+  }
+
+  var remaining = timer.endTimestamp - Date.now();
+  if (remaining <= 0) {
+    var endedAt = timer.endTimestamp;
+    var endedType = timer.sessionType;
+    notifySessionEnd(endedType);
+    finishSession({ completed: true, autoStart: true, endedAtOverride: endedAt });
+  } else {
+    render();
+  }
+}
+
+function handleClockChange() {
+  var perfDelta = performance.now() - anchors.perf;
+  var trustedNow = anchors.date + perfDelta;
+  var remaining = Math.max(timer.endTimestamp - trustedNow, 1000);
+  timer.remainingMs = remaining;
+  timer.endTimestamp = null;
+  timer.status = 'paused';
+  clockChangeAlert = true;
+  persistTimer();
+  render();
+}
+
+function resumeFromClockChange() {
+  clockChangeAlert = false;
+  startOrResume();
+}
+
+function startTickLoop() {
+  if (tickHandle) clearInterval(tickHandle);
+  tickHandle = setInterval(tick, TICK_INTERVAL_MS);
+}
+
+/* =========================================================================
+ * 부팅 / 복원 (FR-08, EC-03)
+ * ========================================================================= */
+function boot() {
+  settings = sanitizeSettings(loadFromStorage(STORAGE_KEYS.settings, DEFAULT_SETTINGS));
+  logs = loadFromStorage(STORAGE_KEYS.logs, {});
+  if (!logs || typeof logs !== 'object') logs = {};
+
+  var loadedTimer = loadFromStorage(STORAGE_KEYS.timer, null);
+  timer = isValidTimerShape(loadedTimer) ? normalizeTimer(loadedTimer) : createDefaultTimer();
+
+  clockChangeAlert = false;
+  anchors = { date: 0, perf: 0 };
+
+  if (timer.status === 'running') {
+    if (typeof timer.endTimestamp === 'number' && timer.endTimestamp > Date.now()) {
+      resetAnchors();
+    } else {
+      // 오프라인/미실행 기간 중 만료됨 — 경과 세션 수와 무관하게 1회만 종료 처리,
+      // 다음 세션은 자동 시작하지 않고 Idle 대기 (BR-02, EC-03)
+      var endedAt = timer.endTimestamp;
+      var endedType = timer.sessionType;
+      notifySessionEnd(endedType);
+      finishSession({ completed: true, autoStart: false, endedAtOverride: endedAt });
+    }
+  }
+  // paused: 스냅샷 그대로 복원 (만료 판정 없음). idle: 별도 처리 불필요.
+
+  render();
+}
+
+/* =========================================================================
+ * 설정 저장 처리 (FR-07)
+ * ========================================================================= */
+function handleSettingsSave(rawValues) {
+  var errors = {};
+  var parsed = {};
+  SESSION_TYPES.forEach(function (key) {
+    var raw = rawValues[key];
+    var str = (raw == null) ? '' : String(raw).trim();
+    var num = Number(str);
+    if (str === '' || !Number.isInteger(num) || num < 1 || num > 180) {
+      errors[key] = '1~180 사이의 정수를 입력하세요.';
+    } else {
+      parsed[key] = num;
+    }
+  });
+
+  if (Object.keys(errors).length > 0) {
+    return { ok: false, errors: errors };
+  }
+
+  settings = { focus: parsed.focus, shortBreak: parsed.shortBreak, longBreak: parsed.longBreak };
+  persistSettings();
+  render();
+  return { ok: true };
+}
+
+/* =========================================================================
+ * 렌더링 (DOM 미존재 환경 — 예: Node 테스트 — 에서는 안전하게 no-op)
+ * ========================================================================= */
+var el = {};
+
+function render() {
+  if (!hasDocument) return;
+  renderBanner();
+  renderTimerScreen();
+  renderMemoOverlay();
+  renderClockChangeModal();
+  if (currentScreen === 'log') renderLogList();
+}
+
+function renderBanner() {
+  if (!el.storageBanner) return;
+  el.storageBanner.hidden = storageStatus !== 'write-failed';
+}
+
+function renderTimerScreen() {
+  if (!el.timeDisplay) return;
+
+  var accent = timer.sessionType;
+  document.documentElement.style.setProperty('--color-accent', 'var(--color-' + accent + ')');
+  document.documentElement.style.setProperty('--color-accent-bg', 'var(--color-' + accent + '-bg)');
+
+  el.sessionTypeLabel.textContent = SESSION_LABEL[timer.sessionType];
+
+  var remainingMs;
+  if (timer.status === 'running') {
+    remainingMs = Math.max(timer.endTimestamp - Date.now(), 0);
+  } else if (timer.status === 'paused') {
+    remainingMs = timer.remainingMs;
+  } else {
+    remainingMs = currentSessionDurationMs(timer.sessionType);
+  }
+  el.timeDisplay.textContent = formatMMSS(remainingMs);
+
+  // 슬롯 도트 (0~4)
+  el.slotDots.innerHTML = '';
+  for (var i = 0; i < 4; i++) {
+    var dot = document.createElement('div');
+    dot.className = 'dot' + (i < timer.slotsConsumed ? ' filled' : '');
+    el.slotDots.appendChild(dot);
+  }
+
+  // 컨트롤 버튼 노출 여부 (BR-04): Memo-Input-Pending 상태에서는 완전히 숨긴다.
+  el.controlsRow.hidden = !!timer.memoPending;
+
+  if (timer.status === 'running') {
+    el.startPauseText.textContent = '일시정지';
+    el.startPauseIcon.innerHTML = '<rect x="5" y="4" width="4" height="16" fill="currentColor"/><rect x="15" y="4" width="4" height="16" fill="currentColor"/>';
+    el.startPauseBtn.setAttribute('aria-label', '일시정지');
+  } else {
+    el.startPauseText.textContent = '시작';
+    el.startPauseIcon.innerHTML = '<polygon points="6,4 20,12 6,20" fill="currentColor"/>';
+    el.startPauseBtn.setAttribute('aria-label', '시작');
+  }
+}
+
+function renderMemoOverlay() {
+  if (!el.memoOverlay) return;
+  el.memoOverlay.hidden = !timer.memoPending;
+  if (timer.memoPending && el.memoInput && document.activeElement !== el.memoInput) {
+    el.memoInput.value = '';
+  }
+}
+
+function renderClockChangeModal() {
+  if (!el.clockChangeModal) return;
+  el.clockChangeModal.hidden = !clockChangeAlert;
+}
+
+function renderSettingsForm() {
+  if (!el.focusInput) return;
+  el.focusInput.value = settings.focus;
+  el.shortBreakInput.value = settings.shortBreak;
+  el.longBreakInput.value = settings.longBreak;
+  el.focusError.textContent = '';
+  el.shortBreakError.textContent = '';
+  el.longBreakError.textContent = '';
+  el.focusInput.classList.remove('invalid');
+  el.shortBreakInput.classList.remove('invalid');
+  el.longBreakInput.classList.remove('invalid');
+  el.settingsSavedMsg.textContent = '';
+}
+
+function renderLogList() {
+  if (!el.logDateInput) return;
+  var dateKey = el.logDateInput.value || todayDateKey();
+  var entry = logs[dateKey] || { count: 0, memos: [] };
+  var sortedMemos = entry.memos.slice().sort(function (a, b) { return a.time - b.time; });
+
+  el.logCount.textContent = '완료한 뽀모도로: ' + entry.count + '개';
+  el.logMemoList.innerHTML = '';
+
+  if (sortedMemos.length === 0) {
+    el.logEmpty.hidden = false;
+  } else {
+    el.logEmpty.hidden = true;
+    sortedMemos.forEach(function (m) {
+      var li = document.createElement('li');
+      li.className = 'memo-item';
+      var timeSpan = document.createElement('span');
+      timeSpan.className = 'memo-time';
+      timeSpan.textContent = formatTimeHHMM(m.time);
+      var textSpan = document.createElement('span');
+      var hasText = m.text && m.text.length > 0;
+      textSpan.className = 'memo-text' + (hasText ? '' : ' empty');
+      textSpan.textContent = hasText ? m.text : '메모 없음';
+      li.appendChild(timeSpan);
+      li.appendChild(textSpan);
+      el.logMemoList.appendChild(li);
+    });
+  }
+}
+
+function switchScreen(name) {
+  currentScreen = name;
+  el.screenTimer.hidden = name !== 'timer';
+  el.screenLog.hidden = name !== 'log';
+  el.screenSettings.hidden = name !== 'settings';
+
+  [el.navTimerBtn, el.navLogBtn, el.navSettingsBtn].forEach(function (btn) {
+    btn.classList.toggle('active', btn.dataset.screen === name);
+  });
+
+  if (name === 'settings') renderSettingsForm();
+  if (name === 'log') {
+    if (!el.logDateInput.value) el.logDateInput.value = todayDateKey();
+    renderLogList();
+  }
+  if (name === 'timer') renderTimerScreen();
+}
+
+/* =========================================================================
+ * DOM 부트스트랩 (브라우저 환경에서만 실행)
+ * ========================================================================= */
+if (hasDocument) {
+  el.storageBanner = document.getElementById('storageBanner');
+  el.navTimerBtn = document.getElementById('navTimerBtn');
+  el.navLogBtn = document.getElementById('navLogBtn');
+  el.navSettingsBtn = document.getElementById('navSettingsBtn');
+  el.screenTimer = document.getElementById('screenTimer');
+  el.screenLog = document.getElementById('screenLog');
+  el.screenSettings = document.getElementById('screenSettings');
+
+  el.sessionTypeLabel = document.getElementById('sessionTypeLabel');
+  el.slotDots = document.getElementById('slotDots');
+  el.timeDisplay = document.getElementById('timeDisplay');
+  el.controlsRow = document.getElementById('controlsRow');
+  el.resetBtn = document.getElementById('resetBtn');
+  el.startPauseBtn = document.getElementById('startPauseBtn');
+  el.startPauseIcon = document.getElementById('startPauseIcon');
+  el.startPauseText = document.getElementById('startPauseText');
+  el.skipBtn = document.getElementById('skipBtn');
+
+  el.memoOverlay = document.getElementById('memoOverlay');
+  el.memoInput = document.getElementById('memoInput');
+  el.memoSubmitBtn = document.getElementById('memoSubmitBtn');
+  el.memoSkipBtn = document.getElementById('memoSkipBtn');
+
+  el.clockChangeModal = document.getElementById('clockChangeModal');
+  el.clockChangeResumeBtn = document.getElementById('clockChangeResumeBtn');
+
+  el.focusInput = document.getElementById('focusInput');
+  el.shortBreakInput = document.getElementById('shortBreakInput');
+  el.longBreakInput = document.getElementById('longBreakInput');
+  el.focusError = document.getElementById('focusError');
+  el.shortBreakError = document.getElementById('shortBreakError');
+  el.longBreakError = document.getElementById('longBreakError');
+  el.settingsForm = document.getElementById('settingsForm');
+  el.settingsSavedMsg = document.getElementById('settingsSavedMsg');
+
+  el.logDateInput = document.getElementById('logDateInput');
+  el.logCount = document.getElementById('logCount');
+  el.logEmpty = document.getElementById('logEmpty');
+  el.logMemoList = document.getElementById('logMemoList');
+
+  el.navTimerBtn.addEventListener('click', function () { switchScreen('timer'); });
+  el.navLogBtn.addEventListener('click', function () { switchScreen('log'); });
+  el.navSettingsBtn.addEventListener('click', function () { switchScreen('settings'); });
+
+  el.startPauseBtn.addEventListener('click', function () {
+    if (timer.status === 'running') pause(); else startOrResume();
+  });
+  el.resetBtn.addEventListener('click', resetCurrentSession);
+  el.skipBtn.addEventListener('click', skip);
+
+  el.memoSubmitBtn.addEventListener('click', function () {
+    submitMemo(el.memoInput.value);
+  });
+  el.memoSkipBtn.addEventListener('click', function () {
+    skipMemo();
+  });
+  el.memoInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      submitMemo(el.memoInput.value);
+    }
+  });
+
+  el.clockChangeResumeBtn.addEventListener('click', resumeFromClockChange);
+
+  el.settingsForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var result = handleSettingsSave({
+      focus: el.focusInput.value,
+      shortBreak: el.shortBreakInput.value,
+      longBreak: el.longBreakInput.value
+    });
+    [['focus', el.focusInput, el.focusError], ['shortBreak', el.shortBreakInput, el.shortBreakError], ['longBreak', el.longBreakInput, el.longBreakError]]
+      .forEach(function (pair) {
+        var key = pair[0], input = pair[1], errorEl = pair[2];
+        if (result.errors && result.errors[key]) {
+          input.classList.add('invalid');
+          errorEl.textContent = result.errors[key];
+        } else {
+          input.classList.remove('invalid');
+          errorEl.textContent = '';
+        }
+      });
+    if (result.ok) {
+      renderSettingsForm();
+      el.settingsSavedMsg.textContent = '저장되었습니다.';
+      setTimeout(function () {
+        if (el.settingsSavedMsg) el.settingsSavedMsg.textContent = '';
+      }, 2500);
+    }
+  });
+
+  el.logDateInput.addEventListener('change', function () {
+    renderLogList();
+  });
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') {
+      resetTabTitle();
+      if (timer && timer.status === 'running') {
+        resetAnchors();
+        tick();
+      }
+    }
+  });
+
+  boot();
+  switchScreen('timer');
+  startTickLoop();
+}
+
+/* =========================================================================
+ * Node.js 테스트 훅 — 브라우저에서는 완전히 비활성 상태(module 미정의)이므로
+ * 실제 서비스 동작에는 영향이 없다. 단일 HTML 파일 배포 요건(12.1)을 해치지
+ * 않는 내부 구현 세부사항으로 12.3 Implementation Freedom 범위 내의 결정이다.
+ * ========================================================================= */
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    STORAGE_KEYS: STORAGE_KEYS,
+    DEFAULT_SETTINGS: DEFAULT_SETTINGS,
+    boot: boot,
+    getState: function () {
+      return {
+        settings: settings,
+        logs: logs,
+        timer: timer,
+        anchors: anchors,
+        clockChangeAlert: clockChangeAlert,
+        storageStatus: storageStatus,
+        tabTitleFlashed: tabTitleFlashed
+      };
+    },
+    startOrResume: startOrResume,
+    pause: pause,
+    resetCurrentSession: resetCurrentSession,
+    skip: skip,
+    submitMemo: submitMemo,
+    skipMemo: skipMemo,
+    tick: tick,
+    handleClockChange: handleClockChange,
+    resumeFromClockChange: resumeFromClockChange,
+    resetAnchors: resetAnchors,
+    handleSettingsSave: handleSettingsSave,
+    toDateKey: toDateKey,
+    todayDateKey: todayDateKey,
+    formatMMSS: formatMMSS,
+    validateSessionMinutes: validateSessionMinutes,
+    sanitizeSettings: sanitizeSettings,
+    computeNextType: computeNextType,
+    notifySessionEnd: notifySessionEnd
+  };
+}
+
+})(typeof window !== 'undefined' ? window : (typeof globalThis !== 'undefined' ? globalThis : this));
+</script>
+</body>
+</html>
