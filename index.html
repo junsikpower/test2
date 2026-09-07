@@ -1094,7 +1094,13 @@
 
     // ── 알림 (FR-02 / EC-01) ────────────────────────────────────────────────
     function fireNotification(message) {
-      var soundPromise = beeper.play();
+      // 재생 실패는 play() 의 Promise 거부 또는 동기 예외로도 감지된다 (FR-02).
+      var soundPromise;
+      try {
+        soundPromise = beeper.play();
+      } catch (e) {
+        soundPromise = Promise.resolve(false);
+      }
       var usedDesktop = false;
       if (notificationGranted(win)) {
         try {
@@ -1102,14 +1108,16 @@
           usedDesktop = true;
         } catch (e) { usedDesktop = false; }
       }
-      soundPromise.then(function (ok) {
-        if (!ok && !usedDesktop) {
-          activateTitleFallback(message);
-        } else if (!ok) {
-          // 소리 실패는 감지되었으나 데스크톱 알림은 호출됨 → 그래도 탭 제목으로 보강.
+      Promise.resolve(soundPromise).then(
+        function (ok) {
+          // 소리 재생 실패가 감지되면 데스크톱 알림 호출 여부와 무관하게 탭 제목으로 보강한다.
+          if (!ok) activateTitleFallback(message);
+        },
+        function () {
+          // Promise 거부 = 재생 실패 → 탭 제목 변경으로 대체.
           activateTitleFallback(message);
         }
-      });
+      );
       if (!usedDesktop && !notificationGranted(win)) {
         // 권한 거부/미지원: 소리 + 탭 제목 (EC-01)
         activateTitleFallback(message);
