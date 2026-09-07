@@ -33,8 +33,8 @@ PROMPT_REVIEW="prompts/review.md"       # 테스트AI 프롬프트 파일
 # AI CLI 실행 명령.
 # {PROMPT} 자리에 프롬프트 전문이 들어간다.
 # 쓰는 CLI에 맞게 이 두 줄만 바꾸면 된다.
-DEV_AI_CMD=(claude -p)
-TEST_AI_CMD=(claude -p)
+DEV_AI_CMD=(codex -p)
+TEST_AI_CMD=(codex -p)
 
 LOG_DIR=".pipeline"                     # 실행 로그를 남길 디렉토리
 ACTIONS_TIMEOUT=1800                    # GitHub Actions 대기 제한 (초)
@@ -63,7 +63,7 @@ die() {
 }
 
 # AI CLI를 실행한다.
-# 프롬프트 파일 전문을 표준 입력이 아니라 인자로 넘긴다.
+# 프롬프트 파일 전문과 작업 대상 파일 경로 안내를 하나의 인자로 넘긴다.
 # AI가 무엇을 했는지는 판정 근거로 쓰지 않는다. 종료 코드만 본다.
 run_ai() {
     local label="$1"; shift
@@ -71,9 +71,13 @@ run_ai() {
     local -a cmd=("$@")
 
     [ -f "$prompt_file" ] || die "$label 프롬프트 파일이 없습니다: $prompt_file"
+    [ -f "$PRD_FILE" ] || die "$label PRD 파일이 없습니다: $PRD_FILE"
+
+    local prompt
+    prompt="$(cat "$prompt_file")"$'\n\n반드시 현재 작업 디렉터리의 '"$PRD_FILE"' 파일을 읽고 작업을 시작하세요.'
 
     log "$label 실행"
-    "${cmd[@]}" "$(cat "$prompt_file")" 2>&1 | tee -a "$LOG_FILE"
+    "${cmd[@]}" "$prompt" 2>&1 | tee -a "$LOG_FILE"
 
     # 파이프를 거쳤으므로 tee가 아니라 앞 명령의 종료 코드를 봐야 한다.
     # set -o pipefail 이 켜져 있어 PIPESTATUS[0] 이 그대로 반영된다.
