@@ -136,7 +136,10 @@
       perfAnchor: perfNow,
       // Memo-Input-Pending (6.2): 기저 status 는 Idle. UI 오버레이 플래그로만 표현.
       memoPending: false,
-      pendingCompletion: null
+      pendingCompletion: null,
+      // 이 memoPending 이 재접속 복원(EC-03)에서 비롯됐는지 여부.
+      // true 면 메모 해소 후 다음 세션을 자동 시작하지 않고 Idle 로 대기한다(BR-02).
+      restoredPending: false
     };
   }
 
@@ -150,7 +153,8 @@
       dateAnchor: t.dateAnchor,
       perfAnchor: t.perfAnchor,
       memoPending: !!t.memoPending,
-      pendingCompletion: t.pendingCompletion || null
+      pendingCompletion: t.pendingCompletion || null,
+      restoredPending: !!t.restoredPending
     };
   }
 
@@ -278,7 +282,8 @@
       dateAnchor: now,
       perfAnchor: perfNow,
       memoPending: false,
-      pendingCompletion: null
+      pendingCompletion: null,
+      restoredPending: false
     };
   }
 
@@ -293,7 +298,8 @@
       dateAnchor: now,
       perfAnchor: perfNow,
       memoPending: false,
-      pendingCompletion: null
+      pendingCompletion: null,
+      restoredPending: false
     };
   }
 
@@ -326,17 +332,19 @@
     var endTs = timer.endTimestamp;
 
     if (timer.sessionType === SESSION.FOCUS) {
-      var consumed = Math.min(FOCUS_SLOTS_PER_CYCLE, timer.focusSlotsConsumed + 1);
+      // Focus 슬롯 소모는 유일하게 advanceCycle 에서만 일어난다(여기서 미리 증가시키지 않는다).
+      // 메모 제출/건너뛰기(resolveMemoAndAdvance) 시점에 BR-01 순서에 따라 1회 소모된다.
       var pendingTimer = {
         sessionType: SESSION.FOCUS,
         status: STATUS.IDLE,
         endTimestamp: null,
         remainingMsSnapshot: 0,
-        focusSlotsConsumed: consumed,
+        focusSlotsConsumed: timer.focusSlotsConsumed,
         dateAnchor: now,
         perfAnchor: perfNow,
         memoPending: true,
-        pendingCompletion: { dateKey: dateKey(endTs), completedAt: endTs }
+        pendingCompletion: { dateKey: dateKey(endTs), completedAt: endTs },
+        restoredPending: false
       };
       return {
         timer: pendingTimer,
@@ -358,13 +366,21 @@
     };
   }
 
-  // FR-05: Memo-Input-Pending 에서 메모 제출/건너뛰기 → 다음 세션 결정 + 자동 시작.
+  // FR-05: Memo-Input-Pending 에서 메모 제출/건너뛰기 → BR-01 순서로 다음 세션 결정.
   // memoText 는 저장 측(app/storage)에서 처리. 여기서는 사이클 전이만.
+  //  - 실시간 완료에서 온 경우: 다음 세션 자동 시작 (FR-03).
+  //  - 재접속 복원(EC-03)에서 온 경우: 다음 세션 Idle 대기, 수동 시작 필요 (BR-02).
   function resolveMemoAndAdvance(timer, settings, now, perfNow) {
     if (!timer.memoPending) {
       throw new Error('resolveMemoAndAdvance requires memoPending state');
     }
     var adv = advanceCycle(SESSION.FOCUS, timer.focusSlotsConsumed);
+    if (timer.restoredPending) {
+      return {
+        timer: makeIdleTimer(timer, adv.sessionType, adv.focusSlotsConsumed, settings, now, perfNow),
+        autoStarted: false
+      };
+    }
     return {
       timer: makeRunningTimer(adv.sessionType, adv.focusSlotsConsumed, settings, now, perfNow),
       autoStarted: true
@@ -477,17 +493,18 @@
 
     // 만료됨 → 경과 세션 수와 무관하게 '중단 시점 세션 1회만' 종료 처리.
     if (t.sessionType === SESSION.FOCUS) {
-      var consumed = Math.min(FOCUS_SLOTS_PER_CYCLE, t.focusSlotsConsumed + 1);
+      // 슬롯 소모는 메모 해소(resolveMemoAndAdvance) 시 advanceCycle 에서 1회만.
       var pendingTimer = {
         sessionType: SESSION.FOCUS,
         status: STATUS.IDLE,
         endTimestamp: null,
         remainingMsSnapshot: 0,
-        focusSlotsConsumed: consumed,
+        focusSlotsConsumed: t.focusSlotsConsumed,
         dateAnchor: now,
         perfAnchor: perfNow,
         memoPending: true,
-        pendingCompletion: { dateKey: dateKey(endTs), completedAt: endTs }
+        pendingCompletion: { dateKey: dateKey(endTs), completedAt: endTs },
+        restoredPending: true
       };
       return {
         timer: pendingTimer,

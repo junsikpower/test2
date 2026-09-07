@@ -12,7 +12,7 @@ permissions:
   pull-requests: read
 jobs:
   verify:
-    uses: junsikpower/ci-templates/.github/workflows/verify.yml@v6
+    uses: junsikpower/ci-templates/.github/workflows/verify.yml@main
     # 이 프로젝트만 건너뛰기까지 엄격하게 막으려면 아래 2줄의 # 을 지우세요
     # with:
     #   fail_on_skipped: true
