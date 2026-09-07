@@ -1,0 +1,17 @@
+{
+  "name": "pomodoro-timer-log",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Offline single-file Pomodoro timer & work log web app (PRD v4)",
+  "license": "MIT",
+  "scripts": {
+    "build": "node build.js",
+    "test:dev": "jest --config jest.config.js tests/dev",
+    "test:review": "jest --config jest.config.js tests/review"
+  },
+  "devDependencies": {
+    "jest": "29.7.0",
+    "jest-environment-jsdom": "29.7.0",
+    "jest-junit": "16.0.0"
+  }
+}

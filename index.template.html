@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>뽀모도로 타이머</title>
+<style>
+  :root {
+    --bg: #1c1f26;
+    --panel: #262b36;
+    --accent: #ff6b6b;
+    --accent-break: #4dabf7;
+    --text: #f1f3f5;
+    --muted: #9aa4b2;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  #app { max-width: 520px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 1.1rem; letter-spacing: 0.04em; color: var(--muted); text-transform: uppercase; }
+  .banner {
+    background: #7a3030; color: #ffe3e3; border: 1px solid var(--accent);
+    padding: 10px 12px; border-radius: 8px; margin-bottom: 16px; font-size: 0.9rem;
+  }
+  nav { display: flex; gap: 8px; margin-bottom: 24px; }
+  nav button {
+    flex: 1; background: var(--panel); color: var(--text); border: 1px solid #333a47;
+    padding: 10px; border-radius: 8px; cursor: pointer; font-size: 0.9rem;
+  }
+  nav button[aria-current="page"] { border-color: var(--accent); color: var(--accent); }
+  .card { background: var(--panel); border-radius: 14px; padding: 28px 20px; text-align: center; }
+  .session-type { font-size: 1rem; color: var(--muted); margin-bottom: 6px; }
+  .slot-info { font-size: 0.8rem; color: var(--muted); margin-bottom: 18px; }
+  .clock { font-size: 4rem; font-variant-numeric: tabular-nums; font-weight: 700; margin: 8px 0 24px; }
+  .controls { display: flex; gap: 10px; justify-content: center; }
+  .controls button, .memo-box button, .settings button {
+    background: var(--accent); color: #1c1f26; border: none; padding: 12px 18px;
+    border-radius: 10px; font-size: 0.95rem; font-weight: 600; cursor: pointer;
+  }
+  .controls button.secondary, .memo-box button.secondary {
+    background: transparent; color: var(--text); border: 1px solid #333a47;
+  }
+  .memo-box { margin-top: 18px; display: flex; flex-direction: column; gap: 10px; }
+  .memo-box input, .settings input {
+    background: #1c1f26; border: 1px solid #333a47; color: var(--text);
+    padding: 10px 12px; border-radius: 8px; font-size: 0.95rem;
+  }
+  .settings label { display: flex; justify-content: space-between; align-items: center; margin: 12px 0; gap: 12px; }
+  .settings input { width: 100px; text-align: right; }
+  .error { color: var(--accent); font-size: 0.9rem; margin-top: 8px; }
+  ul#log-list { list-style: none; padding: 0; text-align: left; }
+  ul#log-list li { padding: 8px 0; border-bottom: 1px solid #333a47; font-variant-numeric: tabular-nums; }
+  [hidden] { display: none !important; }
+  .icon { width: 16px; height: 16px; vertical-align: -3px; margin-right: 6px; }
+</style>
+</head>
+<body>
+<main id="app">
+  <h1>
+    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <circle cx="12" cy="13" r="8" /><path d="M12 13V9" /><path d="M9 2h6" />
+    </svg>
+    뽀모도로 타이머 &amp; 작업 기록
+  </h1>
+
+  <div id="storage-banner" class="banner" role="alert" hidden></div>
+
+  <nav>
+    <button id="nav-timer" type="button" aria-current="page">타이머</button>
+    <button id="nav-settings" type="button" aria-current="false">설정</button>
+    <button id="nav-log" type="button" aria-current="false">로그</button>
+  </nav>
+
+  <section id="view-timer" class="card">
+    <div id="session-type" class="session-type">집중</div>
+    <div id="slot-info" class="slot-info">사이클 0 / 4</div>
+    <div id="clock" class="clock">25:00</div>
+
+    <div id="timer-controls" class="controls">
+      <button id="btn-start-pause" type="button">시작</button>
+      <button id="btn-reset" type="button" class="secondary">리셋</button>
+      <button id="btn-skip" type="button" class="secondary">건너뛰기</button>
+    </div>
+
+    <div id="memo-box" class="memo-box" hidden>
+      <label for="memo-input">이번 집중 세션에서 한 작업 (한 줄)</label>
+      <input id="memo-input" type="text" maxlength="200" placeholder="예: PRD 3장 검토" />
+      <div class="controls">
+        <button id="btn-memo-submit" type="button">메모 저장</button>
+        <button id="btn-memo-skip" type="button" class="secondary">건너뛰기</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="view-settings" class="card settings" hidden>
+    <label>집중 시간(분)<input id="set-focus" type="number" min="1" max="180" step="1" value="25" /></label>
+    <label>짧은 휴식(분)<input id="set-short" type="number" min="1" max="180" step="1" value="5" /></label>
+    <label>긴 휴식(분)<input id="set-long" type="number" min="1" max="180" step="1" value="15" /></label>
+    <button id="btn-settings-save" type="button">저장</button>
+    <div id="settings-error" class="error" hidden></div>
+  </section>
+
+  <section id="view-log" class="card" hidden>
+    <label>날짜 <input id="log-date" type="date" /></label>
+    <p>완료한 뽀모도로: <strong id="log-count">0</strong></p>
+    <ul id="log-list"></ul>
+  </section>
+</main>
+
+<script>
+<!--BUNDLE-->
+</script>
+</body>
+</html>
