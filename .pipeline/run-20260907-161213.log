@@ -9,3 +9,95 @@
 
 ───── ③ 개발AI ─────
 [16:12:14] 개발AI 실행
+## 작업 완료 요약
+
+`reports/*.xml` 이 없어 **신규 개발**로 판단하고 전 과정을 수행했습니다.
+
+### 기획 분석
+PRD v4 목표: 단일 HTML 파일·완전 오프라인 뽀모도로 타이머 + 작업 기록. 핵심 제약은 ① `endTimestamp` 절대시각 기반 타이머(드리프트 0), ② `Date.now()`/`performance.now()` 앵커 델타 5초 비교로 시계변경 감지(대체 불가), ③ 슬롯 소모형 사이클(4슬롯→Long Break), ④ 재접속 복원 시 1회만 종료 처리 + 다음 세션 Idle 대기(BR-02), ⑤ localStorage 쓰기 실패 시 경고 배너 + 자동 재시도(EC-05), ⑥ 프레임워크·외부 리소스 금지.
+
+### 구현 계획 → 결과
+| 계층 | 파일 | 내용 |
+|---|---|---|
+| 순수 로직 | `src/core.js` | 상태머신·사이클 전이·복원·시계변경·설정검증·일별로그. 시간값은 전량 인자 주입(테스트 가능) |
+| 지속성 | `src/storage.js` | 키 3분리 저장, 쓰기실패→`Write-Failed`+큐잉+매 write마다 자동재시도→`Synced` 복귀 |
+| 배선 | `src/app.js` | DOM·Web Audio 합성음·Notification·visibilitychange·tick. `createApp()` 주입식 |
+| 산출물 | `index.template.html` + `build.js` → `index.html` | UMD 모듈을 인라인 결합한 단일 HTML. 빌드 시 외부 URL/음원/`@import` 위반 검사 |
+
+빌드된 `index.html`을 jsdom에서 부팅·조작 스모크 테스트 통과 확인.
+
+### 자체 테스트 (`tests/dev/`, 91 케이스 전부 통과)
+`test_<조항ID>_<검증내용>` 규칙 준수. FR-01~08 / BR-01~04 / EC-01~05 / NFR-01 / 3.2 / 12.1 / 13.1·13.2·13.3(시간 경과 포함 사용자 시나리오) 커버. 코드 방어로직은 `test_INT_*`. skip/xfail 미사용.
+
+### CI 산출물 계약 (초기 구성)
+- **Makefile**: 고정 스켈레톤 그대로. 5개 타겟 리눅스 기준, `ifeq(Windows_NT)` 블록 포함, 탭 들여쓰기, 실패은폐 설정 없음
+- 런타임 선언 `.nvmrc`(20) 1개, lockfile `package-lock.json` 커밋 포함
+- 테스트 설정 `jest.config.js` (jsdom, testMatch, jest-junit → `reports/{dev,review}.xml`)
+- `.env.example` (자격증명 없음 — 완전 로컬), `.gitignore` (node_modules/reports/coverage/.env)
+- 의존성: `jest`, `jest-junit`(JUnit XML), `jest-environment-jsdom`(가짜 DOM/테스트 더블 — 테스트AI용)
+
+### 산출물 자체 검증 (5개 타겟 실행)
+- `make setup` / `build` / `lint` / `test-dev` → **정상**, `reports/dev.xml` 생성(91 testcase, 정상 JUnit)
+- `make test-review` → "No tests found"로 실패. `tests/review/` 는 테스트AI 영역이라 작성 불가하고 `--passWithNoTests`는 금지사항이므로 미해결로 둡니다. 타겟 배선 자체(경로·도구·XML 출력 환경변수)는 정상이며, 파이프라인상 ⑦ 테스트AI 실행 후 ⑧에서 정상 동작합니다.
+
+───── ④ make setup / build / lint ─────
+[16:39:36] make setup
+npm ci
+npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
+npm warn deprecated whatwg-encoding@2.0.0: Use @exodus/bytes instead for a more spec-conformant and faster implementation
+npm warn deprecated glob@7.2.3: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+npm warn deprecated abab@2.0.6: Use your platform's native atob() and btoa() methods instead
+npm warn deprecated domexception@4.0.0: Use your platform's native DOMException instead
+npm warn deprecated uuid@8.3.2: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
+
+added 335 packages, and audited 336 packages in 8s
+
+39 packages are looking for funding
+  run `npm fund` for details
+
+2 moderate severity vulnerabilities
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+[16:39:46] make build
+node build.js
+[build] 생성 완료: index.html (50177 bytes)
+[16:39:46] make lint
+lint ./build.js
+lint ./jest.config.js
+lint ./src/app.js
+lint ./src/core.js
+lint ./src/storage.js
+lint ./tests/dev/acceptance.test.js
+lint ./tests/dev/app-dom.test.js
+lint ./tests/dev/constraints.test.js
+lint ./tests/dev/core-clock.test.js
+lint ./tests/dev/core-cycle.test.js
+lint ./tests/dev/core-log.test.js
+lint ./tests/dev/core-restore.test.js
+lint ./tests/dev/core-timer.test.js
+lint ./tests/dev/storage.test.js
+
+───── ⑤ make test-dev ─────
+[16:39:49] make test-dev
+mkdir -p reports
+JEST_JUNIT_OUTPUT_NAME=dev.xml npx jest --config jest.config.js --ci tests/dev
+PASS tests/dev/core-clock.test.js
+PASS tests/dev/core-log.test.js
+PASS tests/dev/storage.test.js
+PASS tests/dev/core-restore.test.js
+PASS tests/dev/core-cycle.test.js
+PASS tests/dev/core-timer.test.js
+PASS tests/dev/constraints.test.js
+PASS tests/dev/app-dom.test.js
+PASS tests/dev/acceptance.test.js
+
+Test Suites: 9 passed, 9 total
+Tests:       91 passed, 91 total
+Snapshots:   0 total
+Time:        11.887 s
+Ran all test suites matching /tests\\dev/i.
+
+───── ⑥ 개발AI 작업 커밋 ─────

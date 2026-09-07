@@ -31,7 +31,10 @@
 
   function resolveBackend(explicit) {
     if (explicit) return explicit;
-    if (typeof localStorage !== 'undefined') return localStorage;
+    // 일부 브라우저는 file:// / 시크릿 모드에서 localStorage 접근 자체가 예외를 던진다.
+    try {
+      if (typeof localStorage !== 'undefined' && localStorage) return localStorage;
+    } catch (e) { /* 접근 불가 → 백엔드 없음으로 처리 (EC-05) */ }
     return null;
   }
 

@@ -133,6 +133,7 @@
     var tickHandle = null;
     var originalTitle = doc.title || '뽀모도로 타이머';
     var titleFallbackActive = false;
+    var lastValidRemainingMs = null;
 
     var els = {};
     function $(id) { return doc.getElementById(id); }
@@ -260,6 +261,7 @@
       } else {
         timer = Core.startTimer(timer, settings, now(), perfNow());
       }
+      lastValidRemainingMs = null;
       persistTimer();
       render();
     }
@@ -267,6 +269,7 @@
     function onReset() {
       if (timer.memoPending) return;
       timer = Core.resetTimer(timer, settings);
+      lastValidRemainingMs = null;
       persistTimer();
       render();
     }
@@ -276,6 +279,7 @@
       if (timer.memoPending) return;
       var res = Core.skipSession(timer, settings, now(), perfNow());
       timer = res.timer;
+      lastValidRemainingMs = null;
       persistTimer();
       render();
     }
@@ -297,6 +301,7 @@
       }
       var res = Core.resolveMemoAndAdvance(timer, settings, now(), perfNow());
       timer = res.timer;
+      lastValidRemainingMs = null;
       els.memoInput.value = '';
       persistTimer();
       render();
@@ -326,17 +331,31 @@
     }
 
     // ── tick / 시계 이상 / 만료 ─────────────────────────────────────────────
+
+    // EC-04: 시계 변경 감지 시 "직전 마지막으로 유효했던 계산값"으로 고정하기 위해,
+    // 이상이 없던 매 tick 마다 남은 시간을 기록해 둔다.
+    function lastValidRemainingFallback() {
+      if (typeof lastValidRemainingMs === 'number' && lastValidRemainingMs > 0) {
+        return lastValidRemainingMs;
+      }
+      var raw = timer.endTimestamp - now();
+      if (raw > 0) return raw;
+      return timer.remainingMsSnapshot || Core.sessionLengthMs(timer.sessionType, settings);
+    }
+
     function evaluate() {
       if (timer.status === Core.STATUS.RUNNING) {
         // EC-04: 시계 변경 감지
         if (Core.detectClockChange({ dateAnchor: timer.dateAnchor, perfAnchor: timer.perfAnchor }, now(), perfNow())) {
-          var lastValid = Math.max(Core.MIN_PAUSED_REMAINING_MS, timer.endTimestamp - now());
-          timer = Core.forcePauseForClockChange(timer, lastValid);
+          timer = Core.forcePauseForClockChange(timer, lastValidRemainingFallback());
+          lastValidRemainingMs = null;
           persistTimer();
           try { win.alert('시스템 시간 변경이 감지되어 타이머가 일시정지되었습니다'); } catch (e) { /* noop */ }
           render();
           return;
         }
+        // 이상 없음 — 마지막 유효 남은시간 갱신
+        lastValidRemainingMs = Math.max(0, timer.endTimestamp - now());
         // 만료 → 1회 종료 처리
         if (Core.isExpired(timer, now())) {
           var res = Core.completeExpiredSession(timer, settings, now(), perfNow());
@@ -345,6 +364,7 @@
             persistLogs();
           }
           timer = res.timer;
+          lastValidRemainingMs = null;
           persistTimer();
           fireNotification(res.memoPending ? '집중 세션 완료 — 메모를 입력하세요' : '휴식 종료 — 다음 집중을 시작합니다');
           render();
