@@ -308,3 +308,49 @@ Time:        10.185 s
 Ran all test suites matching /tests\\dev/i.
 
 ───── ⑥ 개발AI 작업 커밋 ─────
+[17:05:00] 커밋: 개발AI 작업 (2회차)
+
+───── ⑦ 테스트AI ─────
+[17:05:00] 테스트AI 실행
+## 완료
+
+리뷰/테스트 AI 작업을 이번 회차(`8099bee 개발AI 작업 (2회차)`) 기준으로 수행했습니다. 개발 코드(`src/`, `index.html`)는 수정하지 않았고 `tests/dev/`는 참조하지 않았습니다.
+
+### 직전 커밋 분석 (`git diff HEAD~1 HEAD`)
+애플리케이션 코드 변경은 `src/app.js` + `index.html`의 `fireNotification()` 재작성 한 곳뿐입니다:
+1. `beeper.play()`의 **동기 예외**를 `try/catch`로 흡수 → `Promise.resolve(false)`
+2. `Promise.resolve(x).then(onFulfilled, onRejected)`로 감싸 **Promise 거부**도 재생 실패로 처리 (이전엔 거부 핸들러 없음 → 미처리 거부)
+3. `if(!ok && !usedDesktop)/else if(!ok)` 2분기를 단일 `if(!ok)`로 통합
+
+`src/core.js`·`src/storage.js`는 이번 커밋에서 미변경 → 기존 스위트(2.1~2.7)는 회귀 가드로 유지.
+
+### 산출물
+- **`tests/review/notification-fallback.review.test.js`** (신규, 9케이스): FR-02 조항 4건 + 커밋 코드 기반 INT 5건 (동기 예외 전파 억제 / catch→폴백 분기 / `unhandledRejection` 미발생 / `usedDesktop`과 무관한 `!ok` 폴백 / `doc.title` 공유상태 누적 오염 회귀). 함수명에 근거 ID(`FR02`, `INT`)를 기입, 재현 조건은 테스트 더블로 구현, skip/xfail 미사용.
+- **`docs/test-report-review.md`** 갱신: 대상 커밋, 회귀 영향도 분석(호출관계·인터페이스 의존성·공유 상태), 2.8 신규 케이스 목록, 외부 서비스 응답 계약(동기 throw 응답 추가), 자체 검증 결과.
+
+### 산출물 자체 검증 (`make test-review` 1회)
+- `reports/review.xml` 생성 확인 (JUnit XML)
+- 인식된 테스트 케이스 **131건** / 8개 스위트 — 신규 파일 9건 포함, `test_<근거ID>_...` 함수명이 `<testcase name="...">`에 그대로 기록됨
+- 케이스 0건 아님 → 도구(jest 29.7)·문법 정합
+- 통과/실패 판정은 수행하지 않음 (오케스트레이터 담당)
+
+───── ⑧ make test-review ─────
+[17:11:17] make test-review
+mkdir -p reports
+JEST_JUNIT_OUTPUT_NAME=review.xml npx jest --config jest.config.js --ci tests/review
+PASS tests/review/constraints.review.test.js
+PASS tests/review/core-restore.review.test.js
+PASS tests/review/storage.review.test.js
+PASS tests/review/core-log-settings.review.test.js
+PASS tests/review/notification-fallback.review.test.js
+PASS tests/review/acceptance.review.test.js
+PASS tests/review/app-dom.review.test.js
+PASS tests/review/core-timer.review.test.js
+
+Test Suites: 8 passed, 8 total
+Tests:       131 passed, 131 total
+Snapshots:   0 total
+Time:        6.599 s
+Ran all test suites matching /tests\\review/i.
+
+───── ⑨ 테스트AI 작업 커밋 ─────

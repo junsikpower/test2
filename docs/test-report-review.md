@@ -2,7 +2,7 @@
 
 > 이 문서는 **설계 산출물**이며 실행 결과가 아니다. 테스트의 실행·통과 판정은 오케스트레이터가 수행한다.
 >
-> - 대상 커밋: `e144e9b 개발AI 작업 (1회차)` (HEAD). 직전 커밋 대비 변경 분석은 `git diff HEAD~1 HEAD`.
+> - 대상 커밋: `8099bee 개발AI 작업 (2회차)` (HEAD). 직전 커밋 대비 변경 분석은 `git diff HEAD~1 HEAD` (= `e144e9b` → `8099bee`).
 > - 테스트 코드 위치: `tests/review/`  (도우미: `tests/review/_helpers.js` — `*.test.js` 아님 → 테스트 케이스 아님)
 > - 실행 계약: `make test-review` → `JEST_JUNIT_OUTPUT_NAME=review.xml npx jest --config jest.config.js --ci tests/review` → `reports/review.xml`
 > - 도구: Jest 29.7 (`jsdom`), jest-junit 16. Makefile `test-review` 타겟이 호출하는 도구·문법과 동일.
@@ -11,20 +11,27 @@
 
 ## 1. 직전 커밋(HEAD~1 → HEAD) 변경 요약과 회귀 분석 범위
 
-`git diff HEAD~1 HEAD` 로 확인된 변경 파일:
+`git diff HEAD~1 HEAD` (= `e144e9b 개발AI 작업 (1회차)` → `8099bee 개발AI 작업 (2회차)`) 로 확인된 **애플리케이션 코드** 변경 파일:
 
 | 파일 | 변경 내용 | 회귀 영향 범위 |
 |---|---|---|
-| `index.html` | `src/*.js` 를 재번들한 배포물. `restoredPending` 플래그 흐름, `lastValidRemainingMs` 고정값, storage `try/catch` 가 배포물에 반영됨 | 단일 파일 앱 전체 (부팅·타이머·복원·저장) |
-| `src/app.js` | `lastValidRemainingMs` 도입: 매 정상 tick 마다 남은 시간을 기록하고, EC-04 시계 변경 감지 시 `endTimestamp - now()`(점프로 오염됨) 대신 **감지 직전 마지막 유효값**으로 Paused 스냅샷을 고정. 시작/리셋/스킵/메모해소/만료 시 `lastValidRemainingMs` 리셋 | `evaluate()`, `onVisibilityChange()`, `forcePauseForClockChange` 호출부. 공유 상태: `timer` 클로저, `store`(localStorage) |
-| `src/storage.js` | `resolveBackend()` 에서 전역 `localStorage` 접근 자체가 예외를 던지는 환경(`file://`/시크릿 모드)을 `try/catch` 로 흡수 → 백엔드 없음으로 처리 | `createStore()` 부팅 경로. `write/read` 의 backend 부재 분기 |
-| `tests/dev/*` (신규 4파일) | 개발 AI 자체 테스트 — **참조하지 않음** | — |
+| `src/app.js` | `fireNotification(message)` 재작성. ① `beeper.play()` 의 **동기 예외**를 `try/catch` 로 흡수해 `Promise.resolve(false)` 로 정규화. ② `soundPromise` 를 `Promise.resolve(x).then(onFulfilled, onRejected)` 로 감싸 **Promise 거부**도 재생 실패로 처리(이전 코드엔 거부 핸들러 없음 → 미처리 Promise 거부). ③ `ok === false` 이면 데스크톱 알림 호출 여부(`usedDesktop`)와 무관하게 `activateTitleFallback(message)` 수행 (이전의 2분기 `if/else if` 를 단일 `if(!ok)` 로 통합) | `fireNotification` 호출부: `evaluate()`(만료 알림), `loadPersisted()`(복원 만료 알림). 공유 상태: `doc.title`/`originalTitle`/`titleFallbackActive` (탭 제목 폴백), `beeper`(Web Audio 더블), `win.Notification`(더블) |
+| `index.html` | 위 `src/app.js` 변경을 재번들한 배포물. 인라인 `<script>` 안의 `fireNotification` 이 동일하게 반영됨 | 단일 파일 앱의 알림 경로 (정적 검사는 `constraints.review.test.js` 로 계속 커버) |
 
-`src/core.js` 는 이번 커밋에서 변경되지 않았다(`git diff HEAD~1 HEAD -- src/core.js` 결과 없음). 다만 `restoredPending` 분기(`resolveMemoAndAdvance`, `completeExpiredSession`, `restoreTimer`)가 이번에 처음으로 **배포물 `index.html` 에 반영**되었으므로, 해당 분기와 그 인접 경로(사이클 슬롯 소모 시점, 복원 후 자동시작 억제)를 회귀 영향 범위에 포함하여 검토했다.
+이번 커밋에서 **변경되지 않은** 애플리케이션 코드: `src/core.js`, `src/storage.js`. `git diff HEAD~1 HEAD -- src/core.js src/storage.js` 결과 없음. 따라서 이 두 모듈에 대한 신규 결함 탐지 테스트는 이번 회차 대상이 아니나, 아래 회귀 영향 분석에 따라 **기존 `tests/review/` 스위트(2.1~2.7)를 회귀 가드로 유지**한다.
 
-연관 모듈: `src/app.js` 는 `src/core.js`·`src/storage.js` 를 직접 import. 세 모듈은 `localStorage`(3개 분리 키)라는 전역 저장 데이터를 공유하므로 저장/복원 경로를 통합 시나리오로 함께 검증한다.
+그 외 diff 에 포함된 것: `docs/test-report-review.md`(본 문서), `tests/review/*`(이전 회차 리뷰 산출물), `.pipeline/run-*.log`(파이프라인 로그) — 애플리케이션 코드 아님. `tests/dev/*` 는 **참조하지 않는다.**
+
+**회귀 영향도 분석 (2·3번 지시):**
+- `fireNotification` 을 호출하는 모듈은 `src/app.js` 자신뿐이다(`evaluate`, `loadPersisted`). 외부에서 이 함수를 import/호출하지 않는다.
+- 인터페이스 의존성: `beeper.play()` 의 반환 계약이 `Promise<boolean>` 에서 "동기 throw / reject / `resolve(false)` / `resolve(true)`" 네 가지로 넓어졌다 → `src/app.js createBeeper().play()` 구현( `resolve(true|false)` 만 반환)과의 계약 정합성을 확인.
+- 공유 상태: `doc.title` 은 `activateTitleFallback`/`clearTitleFallback`/`renderLog` 등과 공유된다 → 폴백이 없어야 하는 경로(소리 성공)에서 제목이 오염되지 않는지, 반복 호출로 누적 오염이 없는지 회귀 검증.
+- 호출 관계는 없지만 동일 알림 흐름을 공유하는 EC-01(권한 거부/미지원) 경로도 함께 재확인(기존 `app-dom.review.test.js`).
 
 ## 2. 설계한 테스트 케이스 목록
+
+> **이번 회차(2회차) 신규 설계**: 2.8 `notification-fallback.review.test.js` — 직전 커밋의 `fireNotification` 변경을 직접 대상으로 한다.
+> **2.1 ~ 2.7** 은 이전 회차에 PRD 전 조항(FR-01~08, BR-01~04, EC-01~05, NFR-01~03, §13.1~13.3, §3.2/§12.1)에 대해 설계한 스위트로, 이번 커밋이 `src/app.js` 알림 경로만 건드렸으므로 **회귀 가드로 그대로 유지**한다. 이 스위트들의 `test_INT_*` 케이스 중 일부는 1회차 diff(`restoredPending`, `lastValidRemainingMs`, storage `try/catch`)에서 도출된 것으로, 현재는 해당 코드 경로의 회귀 방지 목적으로 유지된다.
 
 ### 2.1 `tests/review/core-timer.review.test.js` — 타이머/사이클/정확도 (순수 로직)
 
@@ -183,6 +190,22 @@
 | `test_NFR03_외부_모듈_로더나_import구문에_의존하지_않는다` | NFR-03 / 12.1 |
 | `test_32_앱_내부에_데이터_삭제_전체초기화_기능이_없다 (§7.5)` | 3.2 Out of Scope / 7.5 (삭제 기능 미승인) |
 
+### 2.8 `tests/review/notification-fallback.review.test.js` — 세션 종료 알림 소리 실패 폴백 (이번 회차 신규)
+
+대상 코드: `src/app.js` `fireNotification()` (배포물 `index.html` 인라인 스크립트에도 동일 반영). 근거 diff: `git diff HEAD~1 HEAD -- src/app.js index.html`.
+
+| 함수명 | 근거 |
+|---|---|
+| `test_FR02_소리재생이_실패로_감지되면_탭제목_변경으로_대체된다` | FR-02 Acceptance Criteria 3 |
+| `test_FR02_소리재생_Promise가_거부되면_실패로_보고_탭제목_변경으로_대체된다` | FR-02 Processing ("오디오 재생 실패는 play() 호출의 Promise **거부**로 감지 가능 → 실패 시 탭 제목 변경으로 즉시 대체") |
+| `test_FR02_권한허용_소리재생_성공시에는_탭제목을_변경하지_않는다` | FR-02 Acceptance Criteria 2 (권한 허용 시 소리+브라우저 알림) — Negative: 소리 성공 시 폴백 없음 |
+| `test_FR02_세션_만료_실제경로에서도_소리실패시_탭제목으로_대체된다` | FR-02 Acceptance Criteria 1·3 (`evaluate → completeExpiredSession → fireNotification` 실경로) |
+| `test_INT_beeper_play가_동기예외를_던져도_fireNotification은_예외를_전파하지_않는다` | 코드: 커밋의 `try { soundPromise = beeper.play(); } catch (e) { ... }` 신설 (예외 전파 억제) |
+| `test_INT_beeper_play_동기예외시에도_탭제목_폴백이_수행된다` | 코드: 커밋의 `catch → Promise.resolve(false)` → `then(onFulfilled)` 의 `if(!ok)` 분기 |
+| `test_INT_소리재생_Promise거부시_미처리_unhandledRejection이_발생하지_않는다` | 코드: 커밋의 `Promise.resolve(x).then(onFulfilled, onRejected)` 거부 핸들러 신설 (이전 `soundPromise.then(fn)` 회귀 방지) |
+| `test_INT_ok가_false면_데스크톱알림이_호출된_granted상황에서도_탭제목_폴백한다` | 코드: 커밋에서 `if(!ok && !usedDesktop)/else if(!ok)` 2분기를 단일 `if(!ok)` 로 통합한 경로 |
+| `test_INT_fireNotification_반복호출시_소리성공이면_제목이_원복상태로_유지된다` | 코드: `doc.title` 공유 상태 — 폴백 없는 경로 반복 시 제목 오염 누적 없음 (회귀) |
+
 ## 3. 외부 서비스 연동 — 응답 계약 테스트 / 실호출 대체(미검증) 항목
 
 PRD 기준 "외부 서비스"에 해당하는 것은 브라우저 제공 API(`localStorage`, `Notification`, Web Audio, Page Visibility)뿐이며(백엔드 서버 없음 — §1.3, §7.3), 전부 CI 클린 환경에서 거짓 실패를 유발하므로 **테스트 더블로 대체(실호출 테스트 설계 제외)** 하고 응답 계약만 검증한다.
@@ -191,7 +214,7 @@ PRD 기준 "외부 서비스"에 해당하는 것은 브라우저 제공 API(`lo
 |---|---|---|
 | `localStorage` | 인메모리 backend 더블에 성공/`QuotaExceededError`/접근 예외/손상 JSON/직렬화 실패를 주입해 EC-05·FR-08 상태 전이·자동 재시도·경고 표시를 검증 (`storage.review.test.js`, `app-dom` EC-05, `acceptance` 13.1/13.3) | 실제 브라우저 `file://`·시크릿 모드에서의 localStorage 쿼터/정책 동작은 **미검증** (jsdom·인메모리 더블로 대체) |
 | `Notification` API | `window.Notification` 을 `jest.fn`(permission `granted`/`denied`/미설정)으로 대체하여 FR-02·EC-01 의 동시 발송/폴백을 검증 | 실제 OS 데스크톱 알림 표시 여부는 **미검증** (JS 감지 불가 영역 — 3.2·FR-02 에서 명시적으로 제외) |
-| Web Audio (`createBeeper`) | `beeper` 를 `play: () => Promise<boolean>` 더블로 대체(성공/`resolve(false)`/`reject`)하여 FR-02 소리 재생·실패 시 탭 제목 폴백을 검증 | 실제 `AudioContext` 합성음 재생·자동재생 잠금 해제는 **미검증** (jsdom 에 Web Audio 없음 → 테스트 더블로 대체) |
+| Web Audio (`createBeeper`) | `beeper` 를 `play` 더블로 대체하여 FR-02 소리 재생·실패 시 탭 제목 폴백을 검증. 대체 응답: `resolve(true)`(성공) / `resolve(false)`(실패 감지) / `reject(...)`(Promise 거부) / **동기 `throw`**(이번 커밋의 `try/catch` 분기) — `notification-fallback.review.test.js`, `app-dom.review.test.js` FR-02/EC-01 | 실제 `AudioContext` 합성음 재생·자동재생 잠금 해제는 **미검증** (jsdom 에 Web Audio 없음 → 테스트 더블로 대체) |
 | Page Visibility | `document.visibilityState` 를 재정의하고 `visibilitychange` 이벤트를 디스패치하여 EC-02 탭 복귀 재계산을 검증 | 실제 브라우저 백그라운드 스로틀링 타이밍은 **미검증** (이벤트 디스패치로 대체) |
 
 ## 4. 미작성(Not Written) 항목과 사유
@@ -207,8 +230,8 @@ skip / xfail / todo 는 사용하지 않았다. 아래는 설계했으나 이번
 
 ## 5. 산출물 자체 검증 결과 (통과 판정 아님)
 
-- 명령: `make test-review` 1회 실행함.
+- 명령: `make test-review` 1회 실행함 (`JEST_JUNIT_OUTPUT_NAME=review.xml npx jest --config jest.config.js --ci tests/review`).
 - `reports/review.xml` 생성 확인함 (JUnit XML).
-- XML 내 인식된 테스트 케이스: **122건** (7개 스위트 파일). 케이스 이름에 `test_<근거ID>_...` 함수명이 그대로 기록됨을 확인함.
-- 케이스 0건 여부: 아님. Makefile `test-review` 타겟의 도구(jest) 문법과 테스트 코드가 일치함.
+- XML 내 인식된 테스트 케이스: **131건** (8개 스위트 파일 — 기존 7개 + 이번 회차 `notification-fallback.review.test.js` 9건). 케이스 이름에 `test_<근거ID>_...` 함수명이 그대로 기록됨을 확인함 (`<testcase name="test_FR02_..."/>`, `<testcase name="test_INT_beeper_play가_..."/>` 등).
+- 케이스 0건 여부: 아님. Makefile `test-review` 타겟의 도구(jest 29.7 / jest-junit 16 / `jsdom`) 문법과 테스트 코드가 일치함.
 - 통과·실패 판정은 수행하지 않음. (참고: 실행 시 `reports/review.xml` 에 실패 케이스가 포함될 수 있으며, 그 해석·판정은 오케스트레이터의 몫이다.)
