@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>뽀모도로 타이머</title>
+<style>
+  :root {
+    --bg: #14161c;
+    --panel: #1e2230;
+    --fg: #eef1f6;
+    --muted: #97a0b3;
+    --accent: #ff6b5e;
+    --accent-2: #4cc4a5;
+    --warn-bg: #5a3d18;
+    --warn-fg: #ffd9a0;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+  }
+  #app {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 24px 18px 48px;
+  }
+  header nav {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin-bottom: 20px;
+  }
+  nav button {
+    background: var(--panel);
+    color: var(--muted);
+    border: 1px solid #2c3242;
+    border-radius: 999px;
+    padding: 8px 16px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  nav button.active { color: var(--fg); border-color: var(--accent); }
+
+  #storage-warning {
+    background: var(--warn-bg);
+    color: var(--warn-fg);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 13px;
+    margin-bottom: 16px;
+    line-height: 1.5;
+  }
+  [hidden] { display: none !important; }
+
+  .card {
+    background: var(--panel);
+    border-radius: 18px;
+    padding: 28px 22px;
+    text-align: center;
+  }
+  #session-label {
+    color: var(--muted);
+    letter-spacing: 0.12em;
+    font-size: 14px;
+    text-transform: uppercase;
+  }
+  #time-display {
+    font-size: 68px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    margin: 10px 0 6px;
+  }
+  #cycle-indicator {
+    color: var(--accent);
+    letter-spacing: 0.3em;
+    min-height: 18px;
+    font-size: 14px;
+  }
+  .controls {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 22px;
+  }
+  .controls button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #2a3040;
+    color: var(--fg);
+    border: none;
+    border-radius: 12px;
+    padding: 12px 18px;
+    font-size: 15px;
+    cursor: pointer;
+  }
+  .controls button.primary { background: var(--accent); color: #1b1b1b; font-weight: 600; }
+  .controls svg { width: 18px; height: 18px; fill: currentColor; }
+
+  #memo-panel { margin-top: 22px; text-align: left; }
+  #memo-panel p { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
+  #memo-input {
+    width: 100%;
+    background: #12141c;
+    color: var(--fg);
+    border: 1px solid #333b4d;
+    border-radius: 10px;
+    padding: 12px;
+    font-size: 15px;
+  }
+  #memo-panel .controls { justify-content: flex-end; }
+
+  #clock-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  #clock-modal .box {
+    background: var(--panel);
+    border-radius: 16px;
+    padding: 24px;
+    max-width: 340px;
+    text-align: center;
+  }
+
+  .view { margin-top: 4px; }
+  #view-log .row, #view-settings .row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin: 12px 0;
+  }
+  #log-memos { list-style: none; padding: 0; margin: 12px 0 0; }
+  #log-memos li {
+    border-top: 1px solid #2c3242;
+    padding: 10px 2px;
+    font-size: 14px;
+    color: var(--fg);
+  }
+  #log-count { font-size: 32px; font-weight: 700; color: var(--accent-2); }
+  input[type="number"], input[type="date"] {
+    background: #12141c;
+    color: var(--fg);
+    border: 1px solid #333b4d;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 14px;
+    width: 110px;
+  }
+  #settings-error { color: var(--accent); font-size: 13px; min-height: 18px; }
+  .save-btn {
+    background: var(--accent-2);
+    color: #10221d;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 18px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 8px;
+  }
+  h2 { font-size: 16px; margin: 0 0 4px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <nav>
+      <button id="nav-timer" type="button" class="active">타이머</button>
+      <button id="nav-log" type="button">로그</button>
+      <button id="nav-settings" type="button">설정</button>
+    </nav>
+  </header>
+
+  <div id="storage-warning" role="alert" hidden>
+    데이터가 저장되지 않고 있습니다 — 새로고침 시 최근 변경사항이 유실될 수 있습니다.
+  </div>
+
+  <!-- ================= 타이머 화면 ================= -->
+  <section id="view-timer" class="view">
+    <div class="card">
+      <div id="session-label">집중</div>
+      <div id="time-display">25:00</div>
+      <div id="cycle-indicator">—</div>
+
+      <div id="timer-controls" class="controls">
+        <button id="btn-start" type="button" class="primary">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+          <span>시작</span>
+        </button>
+        <button id="btn-reset" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5V1L7 6l5 5V7a6 6 0 1 1-6 6H4a8 8 0 1 0 8-8z"/></svg>
+          <span>리셋</span>
+        </button>
+        <button id="btn-skip" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+          <span>스킵</span>
+        </button>
+      </div>
+
+      <div id="memo-panel" hidden>
+        <p>이번 집중 세션에서 한 일을 한 줄로 남겨 주세요. (건너뛰기 가능)</p>
+        <input id="memo-input" type="text" maxlength="200" placeholder="예: 리팩터링 마무리" />
+        <div class="controls">
+          <button id="btn-memo-skip" type="button"><span>건너뛰기</span></button>
+          <button id="btn-memo-submit" type="button" class="primary"><span>저장</span></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 로그 화면 ================= -->
+  <section id="view-log" class="view" hidden>
+    <div class="card" style="text-align:left">
+      <h2>일별 기록</h2>
+      <div class="row">
+        <label for="log-date">날짜</label>
+        <input id="log-date" type="date" />
+      </div>
+      <div class="row">
+        <span>완료한 뽀모도로</span>
+        <span id="log-count">0</span>
+      </div>
+      <ul id="log-memos"></ul>
+    </div>
+  </section>
+
+  <!-- ================= 설정 화면 ================= -->
+  <section id="view-settings" class="view" hidden>
+    <div class="card" style="text-align:left">
+      <h2>세션 길이 (분)</h2>
+      <p style="color:var(--muted);font-size:13px;margin:4px 0 12px">1 ~ 180 사이의 정수만 입력할 수 있습니다.</p>
+      <div class="row">
+        <label for="set-focus">집중</label>
+        <input id="set-focus" type="number" min="1" max="180" step="1" />
+      </div>
+      <div class="row">
+        <label for="set-short">짧은 휴식</label>
+        <input id="set-short" type="number" min="1" max="180" step="1" />
+      </div>
+      <div class="row">
+        <label for="set-long">긴 휴식</label>
+        <input id="set-long" type="number" min="1" max="180" step="1" />
+      </div>
+      <div id="settings-error" role="alert"></div>
+      <button id="btn-save-settings" type="button" class="save-btn">저장</button>
+    </div>
+  </section>
+</div>
+
+<!-- ================= 시스템 시계 변경 모달 ================= -->
+<div id="clock-modal" hidden>
+  <div class="box">
+    <h2>타이머가 일시정지되었습니다</h2>
+    <p style="color:var(--muted);font-size:14px">시스템 시간 변경이 감지되어 타이머가 일시정지되었습니다.</p>
+    <button id="btn-clock-resume" type="button" class="save-btn">재개</button>
+  </div>
+</div>
+
+<script>
+/*
+ * 뽀모도로 타이머 겸 작업 기록 웹앱 — 단일 HTML 파일, 완전 오프라인.
+ *
+ * PRD v4 구현. 외부 네트워크 리소스를 일절 사용하지 않는다(NFR-02, 12.1).
+ * 타이머는 setInterval 카운트다운이 아니라 Date.now() 기반 절대 종료 시각으로
+ * 계산한다(12.2, NFR-01).
+ *
+ * window.Pomodoro 로 노출되는 API 는 브라우저 실행과 자동화 테스트가 함께 쓴다.
+ * now / perf / storage / audio / notification 은 init() 옵션으로 주입할 수 있으며
+ * (12.3 Implementation Freedom), 미주입 시 실제 브라우저 API 를 사용한다.
+ */
+(function () {
+  'use strict';
+
+  var DEFAULTS = { focusMin: 25, shortBreakMin: 5, longBreakMin: 15 };
+  var K_SETTINGS = 'pomodoro.settings';
+  var K_LOGS = 'pomodoro.logs';
+  var K_TIMER = 'pomodoro.timer';
+  var CLOCK_THRESHOLD_MS = 5000;   // EC-04 / 12.2 승인된 임계값
+  var TICK_MS = 250;
+  var BASE_TITLE = '뽀모도로 타이머';
+  var MIN_SNAPSHOT_MS = 1000;      // 6.3: Paused 스냅샷은 항상 1초 이상
+
+  var env = null;
+  var S = null;
+  var dom = {};
+  var tickHandle = null;
+  var listenersBound = false;
+
+  // ---------- 유틸 ----------
+  function clone(v) { return v == null ? v : JSON.parse(JSON.stringify(v)); }
+  function num(v, d) { return (typeof v === 'number' && isFinite(v)) ? v : d; }
+  function clampSlots(v) {
+    v = Math.floor(num(v, 0));
+    if (!(v >= 0)) v = 0;
+    if (v > 4) v = 4;
+    return v;
+  }
+  function isBreak(t) { return t === 'ShortBreak' || t === 'LongBreak'; }
+  function labelOf(t) {
+    return t === 'Focus' ? '집중' : t === 'ShortBreak' ? '짧은 휴식' : '긴 휴식';
+  }
+
+  // FR-07: 1~180 정수만 허용. 소수·비숫자·범위 밖은 거부(null 반환).
+  function validateMinutes(v) {
+    if (typeof v === 'number') {
+      if (!isFinite(v) || Math.floor(v) !== v) return null;
+      v = String(v);
+    }
+    var s = String(v == null ? '' : v).trim();
+    if (!/^\d+$/.test(s)) return null;
+    var n = parseInt(s, 10);
+    if (n < 1 || n > 180) return null;
+    return n;
+  }
+
+  function dateKey(ts) {
+    var d = new Date(ts);
+    var y = d.getFullYear();
+    var m = ('0' + (d.getMonth() + 1)).slice(-2);
+    var day = ('0' + d.getDate()).slice(-2);
+    return y + '-' + m + '-' + day;   // FR-06: 사용자 기기 로컬 타임존 기준
+  }
+  function hhmm(ts) {
+    var d = new Date(ts);
+    return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+  }
+
+  // ---------- 실제 브라우저 환경 어댑터 ----------
+  function realStorage() {
+    try {
+      var s = window.localStorage;
+      // 접근만으로 예외가 나는 브라우저(파일 프로토콜 차단 등)는 지원 범위 밖(1.3)
+      return s || null;
+    } catch (e) { return null; }
+  }
+
+  function realAudio() {
+    var Ctor = (typeof window !== 'undefined') &&
+      (window.AudioContext || window.webkitAudioContext);
+    if (!Ctor) return null;
+    var ctx = null;
+    function ensure() { if (!ctx) ctx = new Ctor(); return ctx; }
+    return {
+      unlock: function () {
+        try {
+          var c = ensure();
+          if (c.state === 'suspended' && c.resume) return c.resume();
+        } catch (e) {}
+        return Promise.resolve();
+      },
+      beep: function () {
+        return new Promise(function (resolve, reject) {
+          try {
+            var c = ensure();
+            var t0 = c.currentTime;
+            var osc = c.createOscillator();
+            var gain = c.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(880, t0);
+            osc.frequency.setValueAtTime(660, t0 + 0.18);
+            gain.gain.setValueAtTime(0.0001, t0);
+            gain.gain.exponentialRampToValueAtTime(0.25, t0 + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.4);
+            osc.connect(gain);
+            gain.connect(c.destination);
+            osc.onended = function () { resolve(); };
+            osc.start(t0);
+            osc.stop(t0 + 0.42);
+            setTimeout(resolve, 600);
+          } catch (e) { reject(e); }
+        });
+      }
+    };
+  }
+
+  function realNotification() {
+    if (typeof window === 'undefined' || !('Notification' in window)) return null;
+    return {
+      get permission() {
+        try { return window.Notification.permission; } catch (e) { return 'denied'; }
+      },
+      request: function () {
+        try { return Promise.resolve(window.Notification.requestPermission()); }
+        catch (e) { return Promise.resolve('denied'); }
+      },
+      show: function (title, opts) { return new window.Notification(title, opts); }
+    };
+  }
+
+  function defaultEnv() {
+    return {
+      now: function () { return Date.now(); },
+      perf: function () {
+        return (typeof performance !== 'undefined' && performance.now)
+          ? performance.now() : Date.now();
+      },
+      storage: realStorage(),
+      audio: realAudio(),
+      notification: realNotification()
+    };
+  }
+
+  // ---------- 상태 ----------
+  function freshState() {
+    return {
+      settings: clone(DEFAULTS),
+      logs: {},
+      sessionType: 'Focus',
+      sessionStatus: 'Idle',       // Idle | Running | Paused
+      endTimestamp: null,          // Running 일 때만 유효
+      remainingSnapshot: null,     // Paused 일 때만 유효
+      focusSlotsConsumed: 0,       // 0~4 (BR-01)
+      dateAnchor: 0,               // EC-04
+      perfAnchor: 0,
+      lastValidRemaining: null,    // EC-04: 이상 감지 직전 마지막 유효 남은시간
+      ui: 'timer',                 // timer | memo | clock
+      view: 'timer',               // timer | log | settings
+      memoPending: false,
+      pendingCompletionTime: null, // 완료된 Focus 의 종료 목표 시각
+      pendingFromRestore: false,   // BR-02: 재접속 복원 경로면 다음 세션 자동시작 금지
+      storageStatus: 'synced',     // synced | write-failed (6.2)
+      titleFallback: false,
+      alertLog: [],
+      logDate: null,
+      _lastAlert: Promise.resolve(null)
+    };
+  }
+
+  function sessionLenMs(type, settings) {
+    var m = type === 'Focus' ? settings.focusMin
+      : type === 'ShortBreak' ? settings.shortBreakMin
+      : settings.longBreakMin;
+    return m * 60000;
+  }
+
+  // 화면에 표시할 남은시간(ms). 절대시각 기반이라 드리프트가 없다(NFR-01).
+  function displayRemaining() {
+    if (S.sessionStatus === 'Running' && S.endTimestamp != null) {
+      return Math.max(0, S.endTimestamp - env.now());
+    }
+    if (S.sessionStatus === 'Paused' && S.remainingSnapshot != null) {
+      return S.remainingSnapshot;
+    }
+    return sessionLenMs(S.sessionType, S.settings); // Idle 은 설정 길이를 즉시 반영(FR-07)
+  }
+
+  function sampleAnchors() {
+    S.dateAnchor = env.now();
+    S.perfAnchor = env.perf();
+  }
+
+  // ---------- 저장 ----------
+  function persist() {
+    var st = env.storage;
+    if (!st) { setStorageStatus('write-failed'); return; }
+    var ok = true;
+    try { st.setItem(K_SETTINGS, JSON.stringify(S.settings)); } catch (e) { ok = false; }
+    try { st.setItem(K_LOGS, JSON.stringify(S.logs)); } catch (e) { ok = false; }
+    try {
+      st.setItem(K_TIMER, JSON.stringify({
+        sessionType: S.sessionType,
+        sessionStatus: S.sessionStatus,
+        endTimestamp: S.endTimestamp,
+        remainingSnapshot: S.remainingSnapshot,
+        focusSlotsConsumed: S.focusSlotsConsumed,
+        dateAnchor: S.dateAnchor,
+        perfAnchor: S.perfAnchor,
+        memoPending: S.memoPending,
+        pendingCompletionTime: S.pendingCompletionTime,
+        pendingFromRestore: S.pendingFromRestore
+      }));
+    } catch (e) { ok = false; }
+    setStorageStatus(ok ? 'synced' : 'write-failed');   // EC-05: 성공 시 자동 해제
+  }
+  function setStorageStatus(v) {
+    S.storageStatus = v;
+    renderBanner();
+  }
+
+  function readJSON(st, key, fallback, validate) {
+    if (!st) return clone(fallback);
+    var raw;
+    try { raw = st.getItem(key); } catch (e) { return clone(fallback); }
+    if (raw == null) return clone(fallback);
+    try {
+      var v = JSON.parse(raw);
+      if (validate && !validate(v)) return clone(fallback);
+      return v;
+    } catch (e) { return clone(fallback); }
+  }
+
+  function sanitizeSettings(v) {
+    v = v || {};
+    return {
+      focusMin: validateMinutes(v.focusMin) || DEFAULTS.focusMin,
+      shortBreakMin: validateMinutes(v.shortBreakMin) || DEFAULTS.shortBreakMin,
+      longBreakMin: validateMinutes(v.longBreakMin) || DEFAULTS.longBreakMin
+    };
+  }
+
+  function sanitizeLogs(logs) {
+    var out = {};
+    if (!logs || typeof logs !== 'object') return out;
+    Object.keys(logs).forEach(function (k) {
+      var e = logs[k];
+      if (!e || typeof e !== 'object') return;
+      var c = Math.floor(num(e.count, 0));
+      if (!(c >= 0)) c = 0;
+      var memos = Array.isArray(e.memos) ? e.memos.filter(function (m) {
+        return m && typeof m === 'object' && typeof m.time === 'number' && isFinite(m.time);
+      }).map(function (m) {
+        return { time: m.time, text: typeof m.text === 'string' ? m.text : '' };
+      }) : [];
+      out[k] = { count: c, memos: memos };
+    });
+    return out;
+  }
+
+  function ensureLog(dk) {
+    if (!S.logs[dk]) S.logs[dk] = { count: 0, memos: [] };
+    return S.logs[dk];
+  }
+
+  // ---------- 복원 (FR-08 / EC-03) ----------
+  function restore() {
+    var st = env.storage;
+    S.settings = sanitizeSettings(readJSON(st, K_SETTINGS, DEFAULTS, null));
+    S.logs = sanitizeLogs(readJSON(st, K_LOGS, {}, null));
+
+    var t = readJSON(st, K_TIMER, null, function (v) { return v && typeof v === 'object'; });
+    if (!t) { persist(); return; }
+
+    S.sessionType = (t.sessionType === 'ShortBreak' || t.sessionType === 'LongBreak')
+      ? t.sessionType : 'Focus';
+    S.focusSlotsConsumed = clampSlots(t.focusSlotsConsumed);
+    S.dateAnchor = num(t.dateAnchor, 0);
+    S.perfAnchor = num(t.perfAnchor, 0);
+
+    // 메모 입력 대기 중 새로고침 → 메모 UI 복원, 재접속 경로이므로 이후 자동시작 금지(BR-02)
+    if (t.memoPending) {
+      S.memoPending = true;
+      S.pendingCompletionTime = num(t.pendingCompletionTime, env.now());
+      S.pendingFromRestore = true;
+      S.sessionStatus = 'Idle';
+      S.ui = 'memo';
+      persist();
+      return;
+    }
+
+    if (t.sessionStatus === 'Running') {
+      var endTs = num(t.endTimestamp, null);
+      if (endTs == null) { S.sessionStatus = 'Idle'; persist(); return; }
+      if (endTs <= env.now()) {
+        // 오프라인 동안 몇 세션이 지났든 '중단 시점의 세션 1회만' 종료 처리(EC-03)
+        S.endTimestamp = endTs;
+        S.sessionStatus = 'Running';
+        endCurrentSession(true);
+        return;
+      }
+      // 아직 진행 중 → 남은시간 이어서 표시, 앵커는 새 기준으로 재설정
+      S.sessionStatus = 'Running';
+      S.endTimestamp = endTs;
+      S.lastValidRemaining = endTs - env.now();
+      sampleAnchors();
+      persist();
+      return;
+    }
+
+    if (t.sessionStatus === 'Paused') {
+      // endTimestamp 없음 → 만료 판단하지 않음. 스냅샷 그대로 복원(FR-08, EC-03).
+      var snap = num(t.remainingSnapshot, null);
+      if (snap == null || snap <= 0) {
+        S.sessionStatus = 'Idle';
+      } else {
+        S.sessionStatus = 'Paused';
+        S.remainingSnapshot = snap;
+        S.lastValidRemaining = snap;
+      }
+      persist();
+      return;
+    }
+
+    S.sessionStatus = 'Idle';
+    persist();
+  }
+
+  // ---------- 타이머 제어 (FR-01) ----------
+  function start() {
+    if (S.ui !== 'timer') return;                 // BR-04
+    if (S.sessionStatus === 'Running') return;
+    var rem = displayRemaining();
+    if (!(rem > 0)) rem = sessionLenMs(S.sessionType, S.settings);
+    S.endTimestamp = env.now() + rem;             // 12.2: 절대 종료 시각
+    S.remainingSnapshot = null;
+    S.sessionStatus = 'Running';
+    S.lastValidRemaining = rem;
+    sampleAnchors();
+    resetTitle();
+    if (env.audio && env.audio.unlock) { try { env.audio.unlock(); } catch (e) {} }
+    if (env.notification && env.notification.permission === 'default') {
+      try { env.notification.request(); } catch (e) {}
+    }
+    persist();
+    render();
+  }
+
+  function pause() {
+    if (S.ui !== 'timer') return;                 // BR-04
+    if (S.sessionStatus !== 'Running') return;
+    var rem = S.endTimestamp - env.now();
+    if (rem <= 0) { endCurrentSession(false); return; }
+    S.remainingSnapshot = Math.max(MIN_SNAPSHOT_MS, rem);
+    S.endTimestamp = null;
+    S.sessionStatus = 'Paused';
+    S.lastValidRemaining = S.remainingSnapshot;
+    persist();
+    render();
+  }
+
+  function reset() {
+    if (S.ui !== 'timer') return;                 // BR-04
+    // 현재 세션 타이머만 Idle 로. 소모된 Focus 슬롯 수는 보존(BR-03).
+    S.sessionStatus = 'Idle';
+    S.endTimestamp = null;
+    S.remainingSnapshot = null;
+    S.lastValidRemaining = null;
+    resetTitle();
+    persist();
+    render();
+  }
+
+  // ---------- 스킵 (FR-04) ----------
+  function skip() {
+    if (S.ui !== 'timer') return;                 // BR-04
+    var ended = S.sessionType;
+    if (ended === 'Focus') {
+      // 완료 카운트·메모 없음. 단 슬롯은 소모된 것으로 계산.
+      S.focusSlotsConsumed = clampSlots(S.focusSlotsConsumed + 1);
+    } else if (ended === 'LongBreak') {
+      S.focusSlotsConsumed = 0;                   // 사이클 재시작
+    }
+    beginNextSession(nextSessionType(ended, S.focusSlotsConsumed), true);
+  }
+
+  function nextSessionType(ended, slots) {
+    if (ended === 'Focus') return slots >= 4 ? 'LongBreak' : 'ShortBreak';
+    return 'Focus'; // ShortBreak / LongBreak 다음은 항상 Focus (BR-01)
+  }
+
+  // autoStart=true 면 즉시 카운트다운 시작(실시간 사용 중), false 면 Idle 대기(BR-02)
+  function beginNextSession(type, autoStart) {
+    S.sessionType = type;
+    S.sessionStatus = 'Idle';
+    S.endTimestamp = null;
+    S.remainingSnapshot = null;
+    S.lastValidRemaining = null;
+    S.ui = 'timer';
+    if (autoStart) {
+      start();
+    } else {
+      persist();
+      render();
+    }
+  }
+
+  // ---------- 세션 정상 종료 (FR-02 / FR-03 / FR-05) ----------
+  function endCurrentSession(fromRestore) {
+    var ended = S.sessionType;
+    var endTs = S.endTimestamp != null ? S.endTimestamp : env.now();
+    S.endTimestamp = null;
+    S.remainingSnapshot = null;
+    S.lastValidRemaining = null;
+    S.sessionStatus = 'Idle';
+
+    if (ended === 'Focus') {
+      ensureLog(dateKey(endTs)).count += 1;                 // FR-03 (1) 완료 카운트 +1
+      S.focusSlotsConsumed = clampSlots(S.focusSlotsConsumed + 1); // (2) 슬롯 소모
+      fireAlert('Focus');                                   // FR-02
+      S.memoPending = true;                                 // FR-03 (2) Memo-Input-Pending
+      S.pendingCompletionTime = endTs;
+      S.pendingFromRestore = !!fromRestore;
+      S.ui = 'memo';
+      persist();
+      render();
+      return;
+    }
+
+    // Break 종료: 메모 없이 곧바로 다음 Focus (FR-03)
+    fireAlert(ended);
+    if (ended === 'LongBreak') S.focusSlotsConsumed = 0;
+    beginNextSession('Focus', !fromRestore);                // 복원 경로면 Idle 대기(BR-02)
+  }
+
+  // ---------- 메모 (FR-05) ----------
+  function finishMemo(text) {
+    if (!S.memoPending) return;
+    var dk = dateKey(S.pendingCompletionTime);
+    var log = ensureLog(dk);
+    log.memos.push({ time: S.pendingCompletionTime, text: normalizeMemo(text) });
+    log.memos.sort(function (a, b) { return a.time - b.time; });   // FR-06 오름차순
+    var wasFromRestore = S.pendingFromRestore;
+    S.memoPending = false;
+    S.pendingCompletionTime = null;
+    S.pendingFromRestore = false;
+    // FR-03 (3): 메모 제출/건너뛰기 후 BR-01 순서로 다음 세션 결정
+    beginNextSession(nextSessionType('Focus', S.focusSlotsConsumed), !wasFromRestore);
+  }
+  function normalizeMemo(t) { return (t == null ? '' : String(t)).trim(); }
+  function submitMemo(text) { finishMemo(text); }
+  function skipMemo() { finishMemo(''); }
+
+  // ---------- 알림 (FR-02 / EC-01) ----------
+  function fireAlert(endedType) {
+    var msg = endedType === 'Focus' ? '집중 세션이 끝났습니다.' : '휴식이 끝났습니다.';
+    var rec = {
+      endedType: endedType, notified: false,
+      soundAttempted: !!(env.audio && env.audio.beep),
+      soundOk: false, titleFallback: false, ts: env.now()
+    };
+    S.alertLog.push(rec);
+
+    var n = env.notification;
+    if (n && n.permission === 'granted') {
+      try { n.show(BASE_TITLE, { body: msg }); rec.notified = true; } catch (e) { rec.notified = false; }
+    }
+
+    // 소리 알림은 권한과 무관하게 항상 재생 시도(FR-02 주 알림 수단)
+    var soundP;
+    if (env.audio && env.audio.beep) {
+      try {
+        soundP = Promise.resolve(env.audio.beep()).then(function () { return true; },
+          function () { return false; });
+      } catch (e) { soundP = Promise.resolve(false); }
+    } else {
+      soundP = Promise.resolve(false);
+    }
+
+    // 권한 거부/미지원이면 즉시 탭 제목으로 대체(EC-01)
+    if (!rec.notified) { applyTitleFallback(msg); rec.titleFallback = true; }
+
+    S._lastAlert = soundP.then(function (ok) {
+      rec.soundOk = ok;
+      // 오디오 재생 실패가 감지되면 탭 제목 변경으로 대체(FR-02)
+      if (!ok) { applyTitleFallback(msg); rec.titleFallback = true; }
+      render();
+      return rec;
+    });
+    return S._lastAlert;
+  }
+  function applyTitleFallback(msg) {
+    S.titleFallback = true;
+    setTitle('⏰ ' + msg + ' — ' + BASE_TITLE);
+  }
+  function resetTitle() {
+    S.titleFallback = false;
+    setTitle(BASE_TITLE);
+  }
+  function setTitle(t) {
+    try { if (typeof document !== 'undefined') document.title = t; } catch (e) {}
+  }
+
+  // ---------- tick / 시계 변경 감지 (EC-04 / NFR-01) ----------
+  function tick() {
+    if (S.storageStatus === 'write-failed') persist();   // EC-05 자동 재시도
+
+    if (S.ui === 'memo' || S.ui === 'clock') { render(); return; }
+    if (S.sessionStatus !== 'Running') { render(); return; }
+
+    // 앵커 대비 델타끼리 비교(원시값 직접 비교 아님) — 12.2 승인 알고리즘
+    var dateDelta = env.now() - S.dateAnchor;
+    var perfDelta = env.perf() - S.perfAnchor;
+    if (Math.abs(dateDelta - perfDelta) >= CLOCK_THRESHOLD_MS) {
+      onClockChangeDetected();
+      return;
+    }
+
+    var rem = S.endTimestamp - env.now();
+    if (rem <= 0) { endCurrentSession(false); return; }
+    S.lastValidRemaining = rem;
+    render();
+  }
+
+  function onClockChangeDetected() {
+    // 남은시간은 이상 감지 직전 마지막 유효값으로 고정. 임의 연장·단축 없음(EC-04).
+    var fixed = S.lastValidRemaining != null
+      ? S.lastValidRemaining
+      : sessionLenMs(S.sessionType, S.settings);
+    S.remainingSnapshot = Math.max(MIN_SNAPSHOT_MS, fixed);
+    S.endTimestamp = null;
+    S.sessionStatus = 'Paused';
+    S.ui = 'clock';
+    persist();
+    render();
+  }
+
+  function resumeAfterClockChange() {
+    if (S.ui !== 'clock') return;
+    var rem = S.remainingSnapshot != null
+      ? S.remainingSnapshot
+      : sessionLenMs(S.sessionType, S.settings);
+    S.endTimestamp = env.now() + rem;   // 현재 시각 기준 새 종료 목표 시각
+    S.remainingSnapshot = null;
+    S.sessionStatus = 'Running';
+    S.lastValidRemaining = rem;
+    S.ui = 'timer';
+    sampleAnchors();                    // 앵커 재설정
+    persist();
+    render();
+  }
+
+  // ---------- 탭 복귀 (EC-02) ----------
+  function onVisible() {
+    // 탭 복귀 시 앵커를 재설정하여 절전·백그라운드 동결에 의한 오탐지를 막는다(EC-04 주석).
+    sampleAnchors();
+    if (S.ui === 'timer' && S.sessionStatus === 'Running') {
+      var rem = S.endTimestamp - env.now();
+      if (rem <= 0) { endCurrentSession(false); return; }   // 즉시 종료 처리(EC-02)
+      S.lastValidRemaining = rem;
+    }
+    persist();
+    render();
+  }
+
+  // ---------- 설정 (FR-07) ----------
+  function saveSettings(input) {
+    input = input || {};
+    var f = validateMinutes(input.focusMin);
+    var s = validateMinutes(input.shortBreakMin);
+    var l = validateMinutes(input.longBreakMin);
+    var errors = {};
+    if (f == null) errors.focusMin = '1~180 사이의 정수를 입력하세요.';
+    if (s == null) errors.shortBreakMin = '1~180 사이의 정수를 입력하세요.';
+    if (l == null) errors.longBreakMin = '1~180 사이의 정수를 입력하세요.';
+    if (Object.keys(errors).length) {
+      renderSettingsError(errors);            // 저장을 막고 오류 표시
+      return { ok: false, errors: errors };
+    }
+    S.settings = { focusMin: f, shortBreakMin: s, longBreakMin: l };
+    // Idle 세션은 displayRemaining() 이 설정 길이를 바로 참조 → 즉시 반영.
+    // Running/Paused 세션은 endTimestamp / 스냅샷을 유지하므로 다음 회차부터 반영.
+    renderSettingsError(null);
+    persist();
+    render();
+    return { ok: true, settings: clone(S.settings) };
+  }
+
+  // ---------- 화면 이동 ----------
+  function setView(v) {
+    if (v !== 'timer' && v !== 'log' && v !== 'settings') return;
+    S.view = v;
+    render();
+  }
+  function setLogDate(str) {
+    S.logDate = str || null;
+    render();
+  }
+
+  // ---------- 렌더링 ----------
+  function show(el, on) { if (el) el.hidden = !on; }
+
+  function render() {
+    if (!dom.timeDisplay) return;
+    dom.timeDisplay.textContent = fmt(displayRemaining());
+    if (dom.sessionLabel) dom.sessionLabel.textContent = labelOf(S.sessionType);
+    if (dom.cycleIndicator) {
+      var dots = '';
+      for (var i = 0; i < S.focusSlotsConsumed; i++) dots += '● ';
+      dom.cycleIndicator.textContent = dots.trim() || '—';
+    }
+    if (dom.btnStart) {
+      dom.btnStart.querySelector('span').textContent =
+        S.sessionStatus === 'Running' ? '일시정지' : '시작';
+    }
+
+    var memoMode = S.ui === 'memo';
+    var clockMode = S.ui === 'clock';
+    // BR-04: Memo-Input-Pending 에서는 타이머 제어 버튼을 노출하지 않는다.
+    show(dom.timerControls, S.view === 'timer' && !memoMode && !clockMode);
+    show(dom.memoPanel, S.view === 'timer' && memoMode);
+    show(dom.clockModal, clockMode);
+
+    show(dom.viewTimer, S.view === 'timer');
+    show(dom.viewLog, S.view === 'log');
+    show(dom.viewSettings, S.view === 'settings');
+    setNavActive();
+
+    renderBanner();
+    if (S.view === 'log') renderLog();
+    if (S.view === 'settings') renderSettingsInputs();
+  }
+
+  function fmt(ms) {
+    var total = Math.max(0, Math.round(num(ms, 0) / 1000));
+    var m = Math.floor(total / 60);
+    var s = total % 60;
+    return ('0' + m).slice(-2) + ':' + ('0' + s).slice(-2);
+  }
+
+  function renderBanner() {
+    show(dom.storageWarning, S.storageStatus === 'write-failed');
+  }
+
+  function setNavActive() {
+    [['navTimer', 'timer'], ['navLog', 'log'], ['navSettings', 'settings']].forEach(function (p) {
+      var el = dom[p[0]];
+      if (!el) return;
+      if (S.view === p[1]) el.classList.add('active');
+      else el.classList.remove('active');
+    });
+  }
+
+  function renderLog() {
+    var dk = S.logDate || dateKey(env.now());
+    if (dom.logDate && dom.logDate.value !== dk) dom.logDate.value = dk;
+    var l = S.logs[dk] || { count: 0, memos: [] };
+    if (dom.logCount) dom.logCount.textContent = String(l.count);
+    if (!dom.logMemos) return;
+    dom.logMemos.innerHTML = '';
+    l.memos.slice().sort(function (a, b) { return a.time - b.time; }).forEach(function (m) {
+      var li = document.createElement('li');
+      li.textContent = hhmm(m.time) + '  ' + (m.text && m.text.length ? m.text : '메모 없음');
+      dom.logMemos.appendChild(li);
+    });
+  }
+
+  function renderSettingsInputs() {
+    if (dom.setFocus && document.activeElement !== dom.setFocus) dom.setFocus.value = S.settings.focusMin;
+    if (dom.setShort && document.activeElement !== dom.setShort) dom.setShort.value = S.settings.shortBreakMin;
+    if (dom.setLong && document.activeElement !== dom.setLong) dom.setLong.value = S.settings.longBreakMin;
+  }
+
+  function renderSettingsError(errors) {
+    if (!dom.settingsError) return;
+    if (!errors) { dom.settingsError.textContent = ''; return; }
+    var parts = [];
+    if (errors.focusMin) parts.push('집중: ' + errors.focusMin);
+    if (errors.shortBreakMin) parts.push('짧은 휴식: ' + errors.shortBreakMin);
+    if (errors.longBreakMin) parts.push('긴 휴식: ' + errors.longBreakMin);
+    dom.settingsError.textContent = parts.join(' ');
+  }
+
+  // ---------- DOM 배선 ----------
+  function cacheDom() {
+    if (typeof document === 'undefined') return;
+    var byId = function (id) { return document.getElementById(id); };
+    dom = {
+      timeDisplay: byId('time-display'),
+      sessionLabel: byId('session-label'),
+      cycleIndicator: byId('cycle-indicator'),
+      timerControls: byId('timer-controls'),
+      memoPanel: byId('memo-panel'),
+      memoInput: byId('memo-input'),
+      clockModal: byId('clock-modal'),
+      storageWarning: byId('storage-warning'),
+      btnStart: byId('btn-start'),
+      btnReset: byId('btn-reset'),
+      btnSkip: byId('btn-skip'),
+      btnMemoSubmit: byId('btn-memo-submit'),
+      btnMemoSkip: byId('btn-memo-skip'),
+      btnClockResume: byId('btn-clock-resume'),
+      btnSaveSettings: byId('btn-save-settings'),
+      navTimer: byId('nav-timer'),
+      navLog: byId('nav-log'),
+      navSettings: byId('nav-settings'),
+      viewTimer: byId('view-timer'),
+      viewLog: byId('view-log'),
+      viewSettings: byId('view-settings'),
+      logDate: byId('log-date'),
+      logCount: byId('log-count'),
+      logMemos: byId('log-memos'),
+      setFocus: byId('set-focus'),
+      setShort: byId('set-short'),
+      setLong: byId('set-long'),
+      settingsError: byId('settings-error')
+    };
+  }
+
+  function on(el, ev, fn) { if (el) el.addEventListener(ev, fn); }
+
+  function wireDom() {
+    if (typeof document === 'undefined') return;
+    on(dom.btnStart, 'click', function () {
+      if (S.sessionStatus === 'Running') pause(); else start();
+    });
+    on(dom.btnReset, 'click', function () { reset(); });
+    on(dom.btnSkip, 'click', function () { skip(); });
+    on(dom.btnMemoSubmit, 'click', function () {
+      submitMemo(dom.memoInput ? dom.memoInput.value : '');
+      if (dom.memoInput) dom.memoInput.value = '';
+    });
+    on(dom.btnMemoSkip, 'click', function () {
+      if (dom.memoInput) dom.memoInput.value = '';
+      skipMemo();
+    });
+    on(dom.btnClockResume, 'click', function () { resumeAfterClockChange(); });
+    on(dom.btnSaveSettings, 'click', function () {
+      saveSettings({
+        focusMin: dom.setFocus ? dom.setFocus.value : '',
+        shortBreakMin: dom.setShort ? dom.setShort.value : '',
+        longBreakMin: dom.setLong ? dom.setLong.value : ''
+      });
+    });
+    on(dom.navTimer, 'click', function () { setView('timer'); });
+    on(dom.navLog, 'click', function () { setView('log'); });
+    on(dom.navSettings, 'click', function () { setView('settings'); });
+    on(dom.logDate, 'change', function () { setLogDate(dom.logDate.value); });
+
+    if (!listenersBound && typeof document.addEventListener === 'function') {
+      document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) onVisible();
+      });
+      listenersBound = true;
+    }
+  }
+
+  // ---------- 공개 API ----------
+  function publicState() {
+    return {
+      sessionType: S.sessionType,
+      sessionStatus: S.sessionStatus,
+      remainingMs: displayRemaining(),
+      endTimestamp: S.endTimestamp,
+      remainingSnapshot: S.remainingSnapshot,
+      focusSlotsConsumed: S.focusSlotsConsumed,
+      ui: S.ui,
+      view: S.view,
+      memoPending: S.memoPending,
+      pendingFromRestore: S.pendingFromRestore,
+      storageStatus: S.storageStatus,
+      titleFallback: S.titleFallback,
+      settings: clone(S.settings),
+      alertLog: clone(S.alertLog),
+      dateAnchor: S.dateAnchor,
+      perfAnchor: S.perfAnchor
+    };
+  }
+
+  function init(opts) {
+    opts = opts || {};
+    env = defaultEnv();
+    if (opts.now) env.now = opts.now;
+    if (opts.perf) env.perf = opts.perf;
+    if (Object.prototype.hasOwnProperty.call(opts, 'storage')) env.storage = opts.storage;
+    if (Object.prototype.hasOwnProperty.call(opts, 'audio')) env.audio = opts.audio;
+    if (Object.prototype.hasOwnProperty.call(opts, 'notification')) env.notification = opts.notification;
+
+    S = freshState();
+    cacheDom();
+    wireDom();
+    resetTitle();
+    restore();
+    render();
+
+    if (tickHandle) { clearInterval(tickHandle); tickHandle = null; }
+    if (opts.noInterval !== true && typeof setInterval === 'function') {
+      tickHandle = setInterval(tick, TICK_MS);
+    }
+    return window.Pomodoro;
+  }
+
+  window.Pomodoro = {
+    init: init,
+    getState: publicState,
+    start: start,
+    pause: pause,
+    reset: reset,
+    skip: skip,
+    submitMemo: submitMemo,
+    skipMemo: skipMemo,
+    saveSettings: saveSettings,
+    getLog: function (dateStr) {
+      var dk = dateStr || dateKey(env.now());
+      var l = S.logs[dk] || { count: 0, memos: [] };
+      return {
+        date: dk,
+        count: l.count,
+        memos: l.memos.slice().sort(function (a, b) { return a.time - b.time; })
+      };
+    },
+    setView: setView,
+    setLogDate: setLogDate,
+    tick: tick,
+    onVisible: onVisible,
+    resumeAfterClockChange: resumeAfterClockChange,
+    lastAlert: function () { return S ? S._lastAlert : Promise.resolve(null); },
+    _raw: function () { return S; },
+    _env: function () { return env; }
+  };
+
+  if (typeof document !== 'undefined' && !window.__POMODORO_NO_AUTOBOOT__) {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function () { init(); });
+    } else {
+      init();
+    }
+  }
+})();
+</script>
+</body>
+</html>
